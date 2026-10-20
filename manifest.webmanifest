@@ -1,0 +1,9 @@
+{
+  "name": "Fly Korean",
+  "short_name": "Fly Korean",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b1f23",
+  "theme_color": "#1b1f23",
+  "lang": "ko"
+}
