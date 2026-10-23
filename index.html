@@ -83,6 +83,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .res.ok::before{content:"✓"/"";background:var(--ok)} .res.bad::before{content:"✕"/"";background:var(--bad)} .res.warn::before{content:"△"/"";background:var(--warn)}
 .res.ok,.res.bad,.res.warn{border:1px solid currentColor}
 .tag{display:inline-block;font-size:var(--fs-xs);border:1px solid var(--line);border-radius:999px;padding:1px 10px;color:var(--muted)}
+/* 회독 (T072): 세트 줄 배지·완료 도장·숫자. 색 + 글자로 구분 */
+.rd{display:inline-block;font-size:var(--fs-xs);font-weight:700;border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:999px;padding:0 10px;white-space:nowrap}
+.rd.live{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)} .rd.met{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats .card{align-items:center;gap:2px;padding:12px}.stats b{font-size:var(--fs-xl);line-height:1.2}
+.stamp{align-self:center;border:3px solid var(--stamp);color:var(--stamp);border-radius:12px;padding:2px 16px;font-size:var(--fs-l);font-weight:700;transform:rotate(-4deg)}
+.rbig{font-size:96px;font-weight:700;line-height:1;letter-spacing:-.02em;text-align:center;margin:-2px 0 6px}
+.rpop{animation:rpop .3s var(--ease-out) both}@keyframes rpop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rpop{animation:none}}
 input[type=text],input[type=search],input[type=time],textarea{width:100%;min-height:var(--tap);border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:10px 14px;font-size:var(--fs-l)}
 input[type=search]{font-size:var(--fs-m)}
 textarea{min-height:100px;font-size:var(--fs-m)}
@@ -319,9 +327,9 @@ const LESSONS = DATA.lessons;
 const S = {
   screen:"start", params:{}, history:[], code:"", diagDone:false, plan:"free", me:{country:"",job:"",who:""},
   stage:{}, pass:{}, assumed:{}, paused:{}, memo:{}, starred:{}, todayDone:false, studiedToday:false, sheet:null,
-  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, flashOnly:false,autoplay:true, showPron:true, showRoman:false},
+  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, flashOnly:false,roundGoal:1,autoplay:true, showPron:true, showRoman:false},
   session:null, lastSession:null, writing:{}, newSetSeen:false, widgetToday:{}, vocabView:"sets", pathOpen:false,
-  vf:{a:"",b:"",sort:"recent"}, vfVariant:3, exVariant:2, test:{on:false,all:false,label:""}, weekWords:[], inbox:[], mine:[], requests:[], cheered:false, log:[]
+  vf:{a:"",b:"",sort:"recent"}, vfVariant:3, exVariant:2, test:{on:false,all:false,label:""}, weekWords:[], rounds:{}, rb:{}, rleft:{}, preview:null, inbox:[], mine:[], requests:[], cheered:false, log:[]
 };
 
 /* ---------- language: 4 modes for learners (teacher's idea, 2026-10-16) ----------
@@ -554,7 +562,7 @@ V.notice=()=>({html:`<div class="fill"></div><div class="hero center">${t(3,"아
 /* 3 홈: time first, count as detail — a short promise is less scary than a number of words */
 V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fresh=n&&s===SETS[3]&&!S.newSetSeen;
   if(S.todayDone)return{top:homeTop(),
-    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today!")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p><div class="fill"></div>`,
+    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today!")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p>${homeRb()}<div class="fill"></div>`,
     foot:`<button class="link" data-a="startToday">${t(2,"조금 더 하기","Do a little more")}</button>`};
   /* v2 T063 (U12): nothing due and nothing new → say so instead of "0분 · 단어 0개" */
   if(!d&&!n)return{top:homeTop(),
@@ -563,7 +571,7 @@ V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fres
   return{top:homeTop(),
   html:`<div class="fill" style="flex:2"></div><p class="center" style="margin:0;font-size:var(--fs-l);font-weight:700;color:var(--accent)">${t(2,"오늘 공부","Today")}</p><div class="hero center" style="font-size:96px;line-height:1;letter-spacing:-.02em;margin:-2px 0 6px">${minutes(d,n)}${t(1,"분"," min")}</div>
    <p class="center" style="margin:0;font-size:19px;font-weight:500">${t(2,`단어 ${d+n}개`,`${d+n} words`)}${fresh?` · ${t(2,"새 세트","new set")} '${esc(s.name_ko)}'`:n?t(2,` · 새 단어 ${n}개 포함`,` · ${n} new`):""}</p>
-   <p class="center xs muted" style="margin:-6px 0 0">${t(3,"하나만 해도 오늘 출석이에요","Even one word counts for today")}</p><div class="fill" style="flex:3"></div>`,
+   <p class="center xs muted" style="margin:-6px 0 0">${t(3,"하나만 해도 오늘 출석이에요","Even one word counts for today")}</p>${homeRb()}<div class="fill" style="flex:3"></div>`,
   foot:`<button class="btn pri" data-a="startToday">${t(1,"시작","Start")}</button>`}};
 
 /* 4 질문 */
@@ -731,7 +739,7 @@ V.vocab=(p)=>{const q=(p.q||"").trim();const view=S.vocabView;
     /* only the path so far + the current step; the next step shows its name; everything else behind one small link */
     const cur=Math.max(0,steps.indexOf(curPathSet().step_name)),shown=S.allSteps||S.test.all?steps:steps.slice(0,cur+1),next=S.allSteps||S.test.all?null:steps[cur+1];
     const fam=n=>n.split(" ")[0],famList=[...new Set(shown.map(fam))],curFam=fam(steps[cur]),famOpen=f=>S.famOpen&&f in S.famOpen?S.famOpen[f]:(S.allSteps||S.test.all||f===curFam);
-    const setRow=s=>`<button data-a="openSet" data-set="${s.id}"><span class="grow">${esc(s.name_ko)}</span><span class="s muted">${s===curPathSet()?t(2,"지금 · ","now · "):""}${s.word_ids.some(id=>S.stage[id])?setPct(s)+"%":t(2,"아직","not yet")}</span></button>`;
+    const setRow=s=>`<button data-a="openSet" data-set="${s.id}"><span class="grow">${esc(s.name_ko)}</span>${rdBadge(s)}<span class="s muted">${s===curPathSet()?t(2,"지금 · ","now · "):""}${s.word_ids.some(id=>S.stage[id])?setPct(s)+"%":t(2,"아직","not yet")}</span></button>`;
     body=`${meSet()?`<div class="rows"><button data-a="openSet" data-set="ME"><span class="grow">${t(2,"내 단어","My words")} <span class="s muted">${t(3,"나라 · 직업 · 대화 상대","country · job · who")}</span></span><span class="s muted">${meSet().word_ids.some(id=>S.stage[id])?setPct(meSet())+"%":t(2,"아직","not yet")}</span></button></div>`:`<div class="rows"><button data-a="open" data-to="aboutSet"><span class="grow">${t(2,"내 단어 만들기","Make my words")} <span class="s muted">${t(3,"나라 · 직업 · 대화 상대","country · job · who")}</span></span><span class="chev" aria-hidden="true">›</span></button></div>`}<div class="grp">${t(2,"수업에서 배운 것","From class")}</div><div class="rows">${LESSONS.map(l=>`<button data-a="openSet" data-set="${l.id}"><span class="grow">${esc(l.name_ko)} <span class="tag">${t(1,"선생님","Teacher")}</span></span><span class="s muted">${esc(l.date)}</span></button>`).join("")}
       ${S.mine.length?`<button data-a="openSet" data-set="MINE"><span class="grow">${t(2,"내가 넣은 단어","Added by me")}</span><span class="s muted">${S.mine.length}</span></button>`:""}</div>
       ${famList.map(f=>{const op=famOpen(f);return`<button class="link fam-h" data-a="famToggle" data-fam="${esc(f)}" aria-expanded="${op}" style="align-self:stretch;text-align:left;display:flex;justify-content:space-between"><b>${esc(f)}${f===curFam?" · "+t(2,"지금 레벨","current level"):""}</b><span class="s muted">${t(2,`세트 ${SETS.filter(s=>fam(s.step_name)===f&&shown.includes(s.step_name)).length}개`,`${SETS.filter(s=>fam(s.step_name)===f&&shown.includes(s.step_name)).length} sets`)} ${op?"▴":"▾"}</span></button>${op?shown.filter(st=>fam(st)===f).map(st=>`<div class="grp">${esc(st)}${st===steps[cur]&&!S.allSteps?" · "+t(2,"지금 단계","current step"):""}</div><div class="rows">${SETS.filter(s=>s.step_name===st).map(setRow).join("")}</div>`).join(""):""}`}).join("")}
@@ -773,8 +781,54 @@ V.set=(p)=>{const s=anySet(p.set);const started=s.word_ids.some(id=>S.stage[id])
   const pats=(s.pattern_ids||[]).map(id=>NOTES[id]).filter(Boolean);   // 문형: not flashcards, one line only (teacher 10-19)
   const patLine=pats.length?`<p class="muted s" style="margin:6px 0 0">${t(2,"이 세트에 나오는 말","In this set")}: ${pats.map(n=>esc(n.ko)).join(" · ")}</p>`:"";
   return{top:`${backBtn}<h1>${esc(s.name_ko)}</h1>`,
-  html:`${head}${patLine}${sc?`${sceneBlock(s,false)}<div class="listhead"><span class="xs muted">${t(3,"점을 누르면 단어가 나와요","Tap a dot to see the word")}</span>${quizReady?`<button class="link s" data-a="sceneQuizStart" data-set="${s.id}">${t(2,"그림 퀴즈","Picture quiz")} ›</button>`:""}</div>`:""}<div class="rows">${s.word_ids.map(wordRow).join("")}</div>`,
+  html:`${head}${patLine}${rbRow(s)}${sc?`${sceneBlock(s,false)}<div class="listhead"><span class="xs muted">${t(3,"점을 누르면 단어가 나와요","Tap a dot to see the word")}</span>${quizReady?`<button class="link s" data-a="sceneQuizStart" data-set="${s.id}">${t(2,"그림 퀴즈","Picture quiz")} ›</button>`:""}</div>`:""}<div class="rows">${s.word_ids.map(wordRow).join("")}</div>`,
   foot:s.word_ids.length?`<button class="btn pri" data-a="setStudy" data-set="${s.id}">${t(1,"이 단어들 공부하기","Study these words")}</button>`:""}};
+
+/* ---------- 회독 (T072): 세트를 한 번에 훑기. 몰랐던 것만 다음 반복. 단계(S.stage·S.pass)와 출석(S.studiedToday)은 건드리지 않는다 ---------- */
+const goal=()=>S.settings.roundGoal||1, rdone=id=>S.rounds[id]||0;
+{const pv=new URLSearchParams(location.search).get("preview");if(pv)S.preview=pv}   // 예습 지정: 과제 플랫폼 동기화 전에는 주소로만 [기본안]
+function rdBadge(s){const rb=S.rb[s.id],n=rdone(s.id),g=goal();
+  if(rb)return`<span class="rd live">${t(2,"회독 중","In progress")}</span>`;
+  return n?`<span class="rd${n>=g?" met":""}">${n>=g?"✓ ":""}${n}/${g} ${t(1,"회독","Round")}</span>`:""}
+function rbRow(s){if(!s.word_ids.length)return"";const live=S.rb[s.id],left=S.rleft[s.id];
+  return`<div class="rows"><button data-a="rOpen" data-set="${s.id}"><span class="grow">${live?t(2,"회독 이어서","Continue the round"):t(2,"회독 시작","Start a round")} <span class="s muted">${t(3,"세트를 한 번 훑어요","Go through the whole set once")}</span></span>${rdBadge(s)}<span class="chev" aria-hidden="true">›</span></button></div>${left?`<p class="xs muted" style="margin:-6px 4px 0">${t(2,`지난 회독에서 남긴 단어 ${left}개`,`${left} words left from the last round`)}</p>`:""}`}
+function homeRb(){const lk=(txt,id)=>`<div class="rows"><button data-a="rOpen" data-set="${id}"><span class="grow">${txt}</span><span class="chev" aria-hidden="true">›</span></button></div>`;
+  const live=Object.keys(S.rb)[0];
+  if(live){const rb=S.rb[live],s=anySet(live);return lk(`${t(2,"이어서","Continue")} · ${esc(s.name_ko)} <span class="s muted">${t(2,`${rb.pass+1}번째 반복 · ${rb.queue.length-rb.idx}개 남음`,`Pass ${rb.pass+1} · ${rb.queue.length-rb.idx} left`)}</span>`,live)}
+  const pv=S.preview&&anySet(S.preview);
+  if(pv&&rdone(pv.id)<1)return lk(`${t(2,"다음 수업 예습","Prep for next class")} · ${esc(pv.name_ko)} <span class="s muted">0/1 ${t(1,"회독","Round")}</span>`,pv.id);
+  return""}
+function rStart(id){const s=anySet(id),ids=s.word_ids.filter(w=>!S.paused[w]);
+  S.rb[id]={n:rdone(id)+1,pass:0,queue:shuffle(ids),missed:[],idx:0,shown:false,total:ids.length,view:"intro"}}
+V.rb=(p)=>{const id=p.set,s=anySet(id),rb=S.rb[id];
+  if(!rb)return{top:`${backBtn}<h1>${esc(s.name_ko)}</h1>`,html:`<div class="state fill"><p class="hero" style="margin:0">${t(2,"돌 단어가 없어요","Nothing to go through")}</p><p class="muted" style="margin:0">${t(3,"이 세트에 단어가 아직 없어요.","This set has no words yet.")}</p></div>`,foot:`<button class="btn" data-a="rExit">${t(1,"단어장으로","Back")}</button>`};
+  const sp=`<span style="width:48px"></span>`,rn=t(1,"회독","Round");
+  if(rb.view==="intro"){const started=rb.idx>0||rb.pass>0,left=rb.queue.length-rb.idx;
+    return{top:`<button class="icon" data-a="rExit" aria-label="${t(1,"뒤로","Back")}">←</button><h1>${esc(s.name_ko)}</h1>${sp}`,
+    html:`<div class="fill"></div><p class="center xs muted" style="margin:0">${rn}</p><div class="rbig">${rb.n}</div>
+      <p class="center" style="margin:0;font-size:19px;font-weight:500">${started?t(2,`${rb.pass+1}번째 반복 · ${left}개 남음`,`Pass ${rb.pass+1} · ${left} left`)+(rb.idx>0?` · ${t(2,`${rb.idx+1}번째 카드부터`,`from card ${rb.idx+1}`)}`:""):t(2,`단어 ${rb.total}개를 한 번에 훑어요`,`Go through all ${rb.total} words`)}</p>
+      <p class="center xs muted" style="margin:0">${t(3,"회독은 세트를 한 번 훑는 것, 반복은 몰랐던 것만 다시 도는 거예요.","A round = go through the set once. A pass = go again through the ones you missed.")}</p>
+      <p class="center xs muted" style="margin:0">${t(2,`목표 ${goal()}회독`,`Goal: ${goal()} ${goal()>1?"rounds":"round"}`)}</p><div class="fill"></div>`,
+    foot:`<button class="btn pri" data-a="rGo" data-set="${id}">${started?t(1,"이어서","Continue"):t(2,`${rb.n}회독 시작`,`Start round ${rb.n}`)}</button>`}}
+  if(rb.view==="card"){const n=NOTES[rb.queue[rb.idx]],pct=Math.round(100*rb.idx/rb.queue.length);
+    return{top:`<button class="icon" data-a="rStop" data-set="${id}" aria-label="${t(1,"그만하기","Stop")}">✕</button><div class="prog" aria-label="${pct}%"><i style="width:${pct}%"></i></div><span class="s muted" style="min-width:48px;text-align:right;padding-right:6px">${rb.idx+1}/${rb.queue.length}</span>`,
+    html:`<p class="center xs muted" style="margin:8px 0 0">${rb.n} ${rn} · ${t(2,`${rb.pass+1}번째 반복`,`Pass ${rb.pass+1}`)}</p><div class="fill"></div>
+      ${rb.shown?`<div class="rpop">${wordHead(n)}</div>`:`<div class="word">${esc(n.ko)}</div><div class="mean muted" aria-hidden="true">&nbsp;</div>`}<div class="fill"></div>`,
+    foot:rb.shown?`<div class="pair"><button class="btn bad" data-a="rMiss" data-set="${id}">${t(1,"몰랐어요","Didn't know")}</button><button class="btn ok" data-a="rKnow" data-set="${id}">${t(1,"알았어요","Knew it")}</button></div>`:`<button class="btn pri" data-a="rShow" data-set="${id}">${t(1,"뜻 보기","Show meaning")}</button>`}}
+  const miss=rb.missed.length;   // view === "pass"
+  return{top:`${sp}<h1>${t(2,`${rb.pass}번째 반복 끝`,`Pass ${rb.pass} done`)}</h1>${sp}`,
+    html:`<div class="fill"></div><div class="stats"><div class="card"><span class="xs muted">${t(1,"알았어요","Knew")}</span><b>${rb.queue.length-miss}</b></div><div class="card"><span class="xs muted">${t(1,"몰랐어요","Missed")}</span><b>${miss}</b></div></div>
+      ${miss===0?`<div class="res ok">${t(2,"전부 알았어요","You knew them all")}</div>`:`<div class="res warn">${t(2,`몰랐던 ${miss}개만 다시 돌아요`,`Only the ${miss} you missed come back`)}</div>`}<div class="fill"></div>`,
+    foot:miss===0?`<button class="btn pri" data-a="rFinish" data-set="${id}">${t(2,`${rb.n}회독 마치기`,`Finish round ${rb.n}`)}</button>`
+      :`<button class="btn pri" data-a="rNext" data-set="${id}">${t(2,`다음 반복 · ${miss}개`,`Next pass · ${miss}`)}</button>${rb.pass>=2?`<button class="link" data-a="rFinish" data-set="${id}" style="align-self:center;text-align:center">${t(3,`남은 ${miss}개는 단어장에 남고, ${rb.n}회독은 완료로 기록돼요`,`Leave the ${miss} in your list · round ${rb.n} counts as done`)}</button>`:""}`}};
+V.rdone=(p)=>{const l=S.rlast,g=goal(),more=l.n<g;
+  return{top:`<span style="width:48px"></span><h1>${esc(l.name)}</h1><span style="width:48px"></span>`,
+    html:`<div class="fill"></div><div class="stamp">${t(2,`${l.n}회독 완료`,`Round ${l.n} done`)}</div><div class="rbig rpop">${l.n}</div>
+      <p class="center" style="margin:0;font-size:19px;font-weight:500">${t(2,`${l.passes}번 반복해서 끝냈어요`,`Done in ${l.passes} ${l.passes>1?"passes":"pass"}`)}${l.left?` · ${t(2,`남긴 단어 ${l.left}개`,`${l.left} left`)}`:""}</p>
+      <p class="center xs muted" style="margin:0">${l.n>=g?t(2,`목표 ${g}회독을 채웠어요`,`Goal of ${g} reached`):t(2,`목표 ${g}회독 중 ${l.n}회독`,`Goal ${g}: ${l.n} done`)}</p>
+      <p class="center xs muted" style="margin:0">${t(3,"단어 단계(씨앗~나무)는 그대로예요.","Your word stages (seed to tree) stay as they are.")}</p><div class="fill"></div>`,
+    foot:more?`<button class="btn pri" data-a="rAgain" data-set="${l.set}">${t(2,`${l.n+1}회독 이어서`,`Next: round ${l.n+1}`)}</button><button class="link" data-a="rExit" style="align-self:center">${t(2,"단어장으로","Back to words")}</button>`
+      :`<button class="btn pri" data-a="rExit">${t(2,"단어장으로","Back to words")}</button><button class="link" data-a="rAgain" data-set="${l.set}" style="align-self:center">${t(2,`${l.n+1}회독 한 번 더`,`One more round`)}</button>`}};
 
 /* 11 내 공부: for the learner (self-tracking, achievement), not teacher data */
 function stepGroups(steps,cur){const fam=n=>n.split(" ")[0],order=[...new Set(steps.map(fam))],f=order.indexOf(fam(cur));
@@ -852,6 +906,8 @@ V.langSet=()=>{const st=S.settings,b=baseOf(),cur=st.base==="ko"?"ko":st.lang;
 V.perDaySet=()=>({top:`${backBtn}<h1>${t(2,"공부 방식","How I study")}</h1>`,
   html:`<div class="glabel">${t(2,"하루 새 단어","New words a day")}</div><div class="glist">${[3,5,7,10,15].map(v=>`<button class="grow-row" data-a="npd" data-v="${v}" aria-pressed="${S.settings.newPerDay===v}"><span class="fill">${t(2,`${v}개`,`${v}`)}${v===7?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${S.settings.newPerDay===v?"✓":""}</span></button>`).join("")}</div>
    <p class="gfoot">${t(3,"복습할 단어가 많이 쌓이면 새 단어는 저절로 줄어요.","When reviews pile up, new words pause on their own.")}</p>
+   <div class="glabel">${t(2,"회독 목표","Round goal")}</div><div class="glist">${[[1,"꾸준히 · 세트마다 1회독","Steady · 1 round per set"],[3,"시험 준비 · 세트마다 3회독","Exam prep · 3 rounds per set"]].map(([v,ko,en])=>`<button class="grow-row" data-a="rgoal" data-v="${v}" aria-pressed="${goal()===v}"><span class="fill">${t(2,ko,en)}${v===1?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${goal()===v?"✓":""}</span></button>`).join("")}</div>
+   <p class="gfoot">${t(3,"회독은 세트를 한 번 훑는 거예요. 단어 단계와는 따로 세요.","A round goes through a set once. It is counted apart from word stages.")}</p>
    <div class="glabel">${t(2,"단어 테스트 방식","Word test style")}</div><div class="glist">${[[false,"여러 유형 연습","Mixed practice"],[true,"알았어요/몰랐어요만 (플래시카드)","Know / don't know only (flashcards)"]].map(([v,ko,en])=>`<button class="grow-row" data-a="tstyle" data-v="${v}" aria-pressed="${!!S.settings.flashOnly===v}"><span class="fill">${t(2,ko,en)}${v===false?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${!!S.settings.flashOnly===v?"✓":""}</span></button>`).join("")}</div>`});
 V.backupNote=()=>({top:`${backBtn}<h1>${t(2,"기록 백업","Back up")}</h1>`,html:`<p class="muted">${t(3,"공부 기록을 파일로 저장해요. (3단계에서 연결)","Save your study record as a file. (connected in stage 3)")}</p>`,foot:`<button class="btn pri" data-a="backup">${t(1,"파일로 저장","Save file")}</button>`});
 /* 12a 위젯 설정 (one tap deeper): preview + the three widget choices */
@@ -1052,6 +1108,16 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"noteReview":startSession("note",{id:d.id});break;
   case"listStudy":startSession("list",{ids:d.ids.split(",")});break;
   case"openSet":go("set",{set:d.set});break;
+  case"rOpen":{const id=d.set;if(!S.rb[id]&&anySet(id).word_ids.some(w=>!S.paused[w]))rStart(id);S.rb[id]&&(S.rb[id].view="intro");go("rb",{set:id});break}
+  case"rGo":{const rb=S.rb[d.set];rb.view="card";rb.shown=false;render();break}
+  case"rShow":S.rb[d.set].shown=true;render();break;
+  case"rKnow":case"rMiss":{const rb=S.rb[d.set];if(a==="rMiss")rb.missed.push(rb.queue[rb.idx]);log(`round:${rb.queue[rb.idx]}:${a==="rMiss"?"miss":"know"}`);rb.idx++;rb.shown=false;if(rb.idx>=rb.queue.length){rb.pass++;rb.view="pass"}render();break}
+  case"rNext":{const rb=S.rb[d.set];rb.queue=shuffle(rb.missed);rb.missed=[];rb.idx=0;rb.shown=false;rb.view="card";render();break}
+  case"rFinish":{const rb=S.rb[d.set];S.rounds[d.set]=rb.n;S.rleft[d.set]=rb.missed.length;S.rlast={set:d.set,name:anySet(d.set).name_ko,n:rb.n,passes:rb.pass,left:rb.missed.length};delete S.rb[d.set];log(`round:done:${d.set}:${rb.n}`);go("rdone",{},false);break}
+  case"rAgain":{rStart(d.set);go("rb",{set:d.set},false);break}
+  case"rStop":{S.rb[d.set].view="intro";S.history=S.history.filter(h=>h.screen!=="rb"&&h.screen!=="rdone");back();toast(t(2,"여기까지 저장했어요 · 이어서 할 수 있어요","Saved · you can continue later"));break}
+  case"rExit":S.history=S.history.filter(h=>h.screen!=="rb"&&h.screen!=="rdone");back();break;
+  case"rgoal":S.settings.roundGoal=+d.v;log("setting:roundGoal="+d.v);render();break;
   case"setStudy":startSession("set",{set:d.set});break;
   case"vview":S.vocabView=d.v;render();break;
   case"famToggle":{const f=d.fam,o=S.famOpen||(S.famOpen={}),was=f in o?o[f]:(S.allSteps||S.test.all||f===fam0());o[f]=!was;{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break}
