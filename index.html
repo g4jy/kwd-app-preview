@@ -319,7 +319,7 @@ const LESSONS = DATA.lessons;
 const S = {
   screen:"start", params:{}, history:[], code:"", diagDone:false, plan:"free", me:{country:"",job:"",who:""},
   stage:{}, pass:{}, assumed:{}, paused:{}, memo:{}, starred:{}, todayDone:false, studiedToday:false, sheet:null,
-  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, autoplay:true, showPron:true, showRoman:false},
+  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, flashOnly:false,autoplay:true, showPron:true, showRoman:false},
   session:null, lastSession:null, writing:{}, newSetSeen:false, widgetToday:{}, vocabView:"sets", pathOpen:false,
   vf:{a:"",b:"",sort:"recent"}, vfVariant:3, exVariant:2, test:{on:false,all:false,label:""}, weekWords:[], inbox:[], mine:[], requests:[], cheered:false, log:[]
 };
@@ -426,6 +426,7 @@ const card=(id,dir)=>({id,dir,key:id+":"+dir});
 /* card type follows how well the word is known: new → 뜻 떠올리기 only; after 2 passes → 한국어로 쓰기 / 빈칸 too.
    A word missed on the widget today comes back as a different type. */
 function dirFor(id){
+  if(S.settings.flashOnly)return"rec";
   if(S.widgetToday[id]==="bad"&&NOTES[id].examples.length)return"cloze";
   if((S.pass[id]||0)<2||!NOTES[id].examples.length)return"rec";
   return shuffle(["rec","prod","cloze"])[0];
@@ -456,6 +457,11 @@ function submit(result){const s=S.session,c=cur();
   else{const before=S.stage[c.id];S.pass[c.id]=(S.pass[c.id]||0)+1;if(result!=="hard")S.stage[c.id]=Math.min(3,Math.max(1,before+1));
     if(before<2&&S.stage[c.id]>=2&&!S.weekWords.includes(c.id))S.weekWords.push(c.id)}
 }
+const CHO="ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const fam0=()=>{const x=curPathSet();return x?x.step_name.split(" ")[0]:""};
+function hintText(w){const a=[...w],c=a[0].charCodeAt(0)-0xAC00,isH=c>=0&&c<11172;
+  if(a.length<=2&&isH)return`${t(2,"첫 자음","First consonant")}: <b>${CHO[Math.floor(c/588)]}</b>`;
+  return`${t(2,"첫 글자","First letter")}: <b>${esc(a[0])}</b>`}
 function nextCard(){const s=S.session;s.i++;s.input="";s.hint=false;s.graded=null;
   if(s.i>=s.queue.length){S.lastSession=s;S.session=null;log("done");finish(s);return}
   go("q",{},false);
@@ -506,9 +512,11 @@ function runWhy(){const box=$("#why");if(!box||!box.querySelector(".stage"))retu
   w.ch.forEach(([i,s,rule,to])=>{const el=T(i,s);if(!el)return;const b=sp(i);
     if(s==="f"&&to>=0){const tgt=T(to,"c");const j=jamoOf(ko[i]),mv=DBL_[j[2]]?DBL_[j[2]][1]:j[2];
       setTimeout(()=>{if(!tgt)return;tgt.classList.add("ghost");const fly=el.cloneNode(true);fly.className="t fly";fly.textContent=mv;const r0=el.getBoundingClientRect(),r1=tgt.getBoundingClientRect(),rs=st.getBoundingClientRect();
-        fly.style.left=(r0.left-rs.left)+"px";fly.style.top=(r0.top-rs.top)+"px";st.appendChild(fly);el.textContent=b[2];if(!b[2])el.classList.add("gone");
-        requestAnimationFrame(()=>{fly.style.transform=`translate(${r1.left-r0.left}px,${r1.top-r0.top}px)`});
-        setTimeout(()=>{fly.remove();tgt.classList.remove("ghost");tgt.classList.add("new");tgt.textContent=sp(to)[0]},650*d)},tt);tt+=800*d}
+        fly.style.left=(r0.left-rs.left)+"px";fly.style.top=(r0.top-rs.top)+"px";st.appendChild(fly);el.textContent=b[2];
+        fly.style.transition="none";const T0=performance.now(),DUR=600*d;  // follow the target tile's live position so a collapsing neighbour can't shift the landing spot
+        const step=now=>{if(!fly.isConnected)return;const q=d?Math.min(1,(now-T0)/DUR):1,e=q<.5?2*q*q:1-Math.pow(-2*q+2,2)/2,rt=tgt.getBoundingClientRect(),rn=st.getBoundingClientRect();
+          fly.style.transform=`translate(${((rt.left-rn.left)-(r0.left-rs.left))*e}px,${((rt.top-rn.top)-(r0.top-rs.top))*e}px)`;if(q<1)requestAnimationFrame(step)};requestAnimationFrame(step);
+        setTimeout(()=>{if(!b[2])el.classList.add("gone");fly.remove();tgt.classList.remove("ghost");tgt.classList.add("new");tgt.textContent=sp(to)[0]},650*d)},tt);tt+=800*d}
     else{setTimeout(()=>{el.classList.add("hot");setTimeout(()=>{el.classList.remove("hot");el.classList.add("new");el.textContent=(s==="c"?b[0]:s==="v"?b[1]+(w.long.includes(i)?"ː":""):b[2]);if(s==="f"&&!b[2])el.classList.add("gone")},350*d)},tt);tt+=500*d}});
   setTimeout(()=>box.querySelector(".res").classList.add("on"),tt+100*d)}
 const wordHead=n=>`<div class="word">${esc(n.ko)}</div>${n.yo&&n.yo!==n.ko?`<p class="center muted" style="margin:-8px 0 0">${esc(n.yo)}</p>`:""}${pronLine(n)}<div class="mean">${esc(n.en)}</div>${sound}`;
@@ -575,7 +583,7 @@ V.q=()=>{const s=S.session,c=cur(),n=NOTES[c.id];
   return{top:sessionTop(),
    html:`<div class="fill"></div>${q}${lv&&lv!=="중립"?`<div class="center"><span class="tag">${t(1,"말투","Style")}: ${esc(lv)}</span></div>`:""}
     <input type="text" id="inp" autocomplete="off" lang="ko" aria-label="한국어로 쓰기" placeholder="${t(2,"한국어로 쓰기","Type in Korean")}" value="${esc(s.input)}">
-    <div class="center">${s.hint?`<span class="s muted">${t(2,"첫 글자","First letter")}: <b>${esc((isCloze?e.cloze:ans(n))[0])}</b></span>`:`<button class="link" data-a="hint">${t(1,"힌트","Hint")}</button>`}</div><div class="fill"></div>`,
+    <div class="center">${s.hint?`<span class="s muted">${hintText(isCloze?e.cloze:ans(n))}</span>`:`<button class="link" data-a="hint">${t(1,"힌트","Hint")}</button>`}</div><div class="fill"></div>`,
    foot:`<div class="pair"><button class="btn" data-a="dunno">${t(1,"모르겠어요","I don't know")}</button><button class="btn pri" data-a="check">${t(1,"확인","Check")}</button></div>`,
    after:()=>{const i=$("#inp");i.focus();i.addEventListener("input",()=>s.input=i.value);i.addEventListener("keydown",ev=>{if(ev.key==="Enter")act("check")})}}};
 
@@ -601,13 +609,13 @@ function teacherCard(n){return`<div class="card s"><b>${t(2,"선생님 설명","
 const phrase=x=>{if(typeof x==="object"){const eq=x.en_equiv&&x.en_equiv!=="—"?x.en_equiv:"";
     return`<div class="ph"><b>${esc(x.ko)}</b>${x.example?`<span class="s">“${esc(x.example)}”</span>`:""}
       <span class="xs muted">${t(2,"직역","Literally")} ${esc(x.literal||"")}${eq?` · ${t(2,"영어로는","In English")} <i>${esc(eq)}</i>`:` · ${esc(x.meaning_en||"")}`}</span>
-      ${x.nuance_ko?`<span class="xs muted">→ ${esc(t(3,x.nuance_ko,x.meaning_en||x.nuance_ko))}</span>`:""}</div>`}
+      ${(()=>{const nu=t(3,x.nuance_ko,x.nuance_en||"");return nu?`<span class="xs muted">→ ${esc(nu)}</span>`:""})()}</div>`}
   const [head,exs,nu]=x.split(" :: ");const m=head.match(/^(.*?) \((.*)\)$/);
   return`<div class="ph"><b>${esc(m?m[1]:head)}</b>${m?`<span class="xs muted">${esc(m[2])}</span>`:""}${exs?`<span class="s">“${esc(exs)}”</span>`:""}${nu?`<span class="xs muted">→ ${esc(nu)}</span>`:""}</div>`};
 function phrasesCard(n){return(n.phrases||[]).length?`<div class="card s"><b>${t(2,"이렇게도 써요","Surprising uses")}</b>${n.phrases.map(phrase).join("")}</div>`:""}
 /* examples: one card at a time with the next one peeking (NN/g: a cut-off card is the strongest "there's more" cue),
    dots + "2 / 3" + ‹ › under it (thumb zone), swipe or tap arrows, no autoplay; max 5 cards, then "예문 더 보기 (N)" */
-function exCarousel(n){const ours=n.examples.map(e=>({html:hl(e),en:e.en,src:"",tip:e.tip?t(3,e.tip,e.tip_en||e.tip):""})),dict=(n.dict_examples||[]).map(x=>({html:esc(x.ko),en:x.en||"",src:x.src||t(2,"사전","dictionary")}));
+function exCarousel(n){const ours=n.examples.map(e=>e.locked?({html:`<span class="muted">🔒 ${t(2,"잠긴 예문","Locked example")}</span>`,en:"",src:"",tip:""}):({html:hl(e),en:e.en,src:"",tip:e.tip?t(3,e.tip,e.tip_en||e.tip):""})),dict=(n.dict_examples||[]).map(x=>({html:esc(x.ko),en:x.en||"",src:x.src||t(2,"사전","dictionary")}));
   const all=[...ours,...dict];if(!all.length)return"";
   const card=(x,k)=>`<div class="slide" role="group" data-k="${k}" aria-label="예문 ${k+1}/${all.length}">${(S.exVariant===3||S.exVariant===4)&&all.length>1?`<span class="xs muted pg">${k+1}/${Math.min(all.length,5)+(all.length>5?1:0)}</span>`:""}<div class="ko">${x.html}</div>${x.en?`<div class="s muted">${esc(x.en)}</div>`:""}${x.tip?`<div class="xs muted tip">💡 ${esc(x.tip)}</div>`:""}${x.src?`<div class="xs muted">${t(2,"출처","Source")}: ${esc(x.src)}</div>`:""}<button class="icon sm play" data-a="sound" aria-label="예문 듣기">🔈</button></div>`;
   if(all.length===1)return`<div class="exc">${card(all[0],0).replace('class="slide"','class="slide" style="flex:none"')}</div>`;
@@ -722,10 +730,11 @@ V.vocab=(p)=>{const q=(p.q||"").trim();const view=S.vocabView;
   else if(view==="sets"){const steps=[...new Set(SETS.map(s=>s.step_name))];
     /* only the path so far + the current step; the next step shows its name; everything else behind one small link */
     const cur=Math.max(0,steps.indexOf(curPathSet().step_name)),shown=S.allSteps||S.test.all?steps:steps.slice(0,cur+1),next=S.allSteps||S.test.all?null:steps[cur+1];
+    const fam=n=>n.split(" ")[0],famList=[...new Set(shown.map(fam))],curFam=fam(steps[cur]),famOpen=f=>S.famOpen&&f in S.famOpen?S.famOpen[f]:(S.allSteps||S.test.all||f===curFam);
     const setRow=s=>`<button data-a="openSet" data-set="${s.id}"><span class="grow">${esc(s.name_ko)}</span><span class="s muted">${s===curPathSet()?t(2,"지금 · ","now · "):""}${s.word_ids.some(id=>S.stage[id])?setPct(s)+"%":t(2,"아직","not yet")}</span></button>`;
     body=`${meSet()?`<div class="rows"><button data-a="openSet" data-set="ME"><span class="grow">${t(2,"내 단어","My words")} <span class="s muted">${t(3,"나라 · 직업 · 대화 상대","country · job · who")}</span></span><span class="s muted">${meSet().word_ids.some(id=>S.stage[id])?setPct(meSet())+"%":t(2,"아직","not yet")}</span></button></div>`:`<div class="rows"><button data-a="open" data-to="aboutSet"><span class="grow">${t(2,"내 단어 만들기","Make my words")} <span class="s muted">${t(3,"나라 · 직업 · 대화 상대","country · job · who")}</span></span><span class="chev" aria-hidden="true">›</span></button></div>`}<div class="grp">${t(2,"수업에서 배운 것","From class")}</div><div class="rows">${LESSONS.map(l=>`<button data-a="openSet" data-set="${l.id}"><span class="grow">${esc(l.name_ko)} <span class="tag">${t(1,"선생님","Teacher")}</span></span><span class="s muted">${esc(l.date)}</span></button>`).join("")}
       ${S.mine.length?`<button data-a="openSet" data-set="MINE"><span class="grow">${t(2,"내가 넣은 단어","Added by me")}</span><span class="s muted">${S.mine.length}</span></button>`:""}</div>
-      ${shown.map(st=>`<div class="grp">${esc(st)}${st===steps[cur]&&!S.allSteps?" · "+t(2,"지금 단계","current step"):""}</div><div class="rows">${SETS.filter(s=>s.step_name===st).map(setRow).join("")}</div>`).join("")}
+      ${famList.map(f=>{const op=famOpen(f);return`<button class="link fam-h" data-a="famToggle" data-fam="${esc(f)}" aria-expanded="${op}" style="align-self:stretch;text-align:left;display:flex;justify-content:space-between"><b>${esc(f)}${f===curFam?" · "+t(2,"지금 레벨","current level"):""}</b><span class="s muted">${t(2,`세트 ${SETS.filter(s=>fam(s.step_name)===f&&shown.includes(s.step_name)).length}개`,`${SETS.filter(s=>fam(s.step_name)===f&&shown.includes(s.step_name)).length} sets`)} ${op?"▴":"▾"}</span></button>${op?shown.filter(st=>fam(st)===f).map(st=>`<div class="grp">${esc(st)}${st===steps[cur]&&!S.allSteps?" · "+t(2,"지금 단계","current step"):""}</div><div class="rows">${SETS.filter(s=>s.step_name===st).map(setRow).join("")}</div>`).join(""):""}`}).join("")}
       ${next?`<div class="grp">${t(2,"다음 단계","Next step")}</div><p class="muted s" style="margin:0 4px">${esc(next)} · ${t(2,`세트 ${SETS.filter(s=>s.step_name===next).length}개`,`${SETS.filter(s=>s.step_name===next).length} sets`)}</p>`:""}
       <button class="link s" data-a="allSteps" style="align-self:center">${S.allSteps?t(2,"지금 단계까지만 보기","Show up to my step"):t(2,`전체 단계 보기 (${steps.length}단계 · 세트 ${SETS.length}개)`,`All steps (${steps.length} · ${SETS.length} sets)`)}</button>`}
   else{const r=vocabWords(S.vfVariant||1,list);body=r.body;foot=r.foot||""}
@@ -768,6 +777,9 @@ V.set=(p)=>{const s=anySet(p.set);const started=s.word_ids.some(id=>S.stage[id])
   foot:s.word_ids.length?`<button class="btn pri" data-a="setStudy" data-set="${s.id}">${t(1,"이 단어들 공부하기","Study these words")}</button>`:""}};
 
 /* 11 내 공부: for the learner (self-tracking, achievement), not teacher data */
+function stepGroups(steps,cur){const fam=n=>n.split(" ")[0],order=[...new Set(steps.map(fam))],f=order.indexOf(fam(cur));
+  return order.slice(f+1).map(g=>{const ns=steps.filter(x=>fam(x)===g).map(x=>x.split(" ")[1]),nums=ns.filter(x=>/^\d+$/.test(x)).map(Number),ex=ns.filter(x=>!/^\d+$/.test(x));
+    return esc(g)+"("+(nums.length?(nums.length>1?`${Math.min(...nums)}~${Math.max(...nums)}`:nums[0]):"")+(ex.length?(nums.length?"·":"")+ex.join("·"):"")+")"}).join(" → ")}
 V.progress=()=>{const known=allWords().filter(id=>S.stage[id]>=2).length;const gain=S.weekWords.length;
   const days=t(2,["월","화","수","목","금","토","일"],["M","T","W","T","F","S","S"]),studied=[1,1,0,1,S.studiedToday||S.todayDone?1:0,0,0],today=4;
   let streak=0;for(let i=today;i>=0&&studied[i];i--)streak++;
@@ -785,8 +797,8 @@ V.progress=()=>{const known=allWords().filter(id=>S.stage[id]>=2).length;const g
     ${!S.pathOpen&&si>1?`<p class="xs muted" style="margin:0">✓ ${t(2,`앞의 세트 ${si-1}개 완료`,`${si-1} earlier sets done`)}</p>`:""}
     <div class="path">${show.map(row).join("")}</div>
     <button class="link" data-a="pathToggle" style="align-self:flex-start">${S.pathOpen?t(1,"접기","Less"):`${esc(step)} ${t(1,"전체 보기","see all")}`}</button>
-    <p class="xs muted" style="margin:0">${t(2,"다음 단계","Next")}: ${steps.slice(steps.indexOf(step)+1).map(esc).join(" → ")} → 새싹 1</p></div>
-   ${gain?`<div class="card"><b>${t(2,"이번 주에 외운 단어","Learned this week")}</b><div class="chips">${S.weekWords.map(id=>`<button class="chip" data-a="detail" data-id="${id}">${esc(NOTES[id].ko)}</button>`).join("")}</div></div>`:""}
+    <p class="xs muted" style="margin:0">${t(2,"다음 단계","Next")}: ${stepGroups(steps,step)}</p></div>
+   ${gain?`<div class="card"><b>${t(2,"이번 주에 외운 단어","Learned this week")}</b><span class="s muted">${t(2,`모두 ${S.weekWords.length}개`,`${S.weekWords.length} words in all`)}</span><div class="chips">${(S.weekAll?S.weekWords:S.weekWords.slice(-8)).map(id=>`<button class="chip" data-a="detail" data-id="${id}">${esc(NOTES[id].ko)}</button>`).join("")}</div>${S.weekWords.length>8?`<button class="link s" data-a="weekAll" style="align-self:flex-start">${S.weekAll?t(1,"접기","Less"):t(2,`+${S.weekWords.length-8}개 더 보기`,`+${S.weekWords.length-8} more`)}</button>`:""}</div>`:""}
    ${forget.length?`<div class="card"><b>${t(2,"잊기 전에 한 번 더","Before you forget")}</b><span class="s muted">${t(3,`한동안 안 본 단어 ${forget.length}개. 지금 보면 오래 기억해요.`,`${forget.length} words you haven't seen for a while. A quick look now makes them stick.`)}</span><button class="btn" data-a="listStudy" data-ids="${forget.join(",")}">${t(1,"지금 보기","Review now")}</button></div>`:""}
    <p class="center xs muted" style="margin:0">${t(3,`문장으로 쓸 수 있는 표현 ${using.length}개 (선생님이 확인한 문장 기준)`,`${using.length} expressions you can use (checked by your teacher)`)}</p>`}};
 
@@ -813,7 +825,7 @@ V.settings=()=>{const st=S.settings,ln=LANGS.find(x=>x[0]===st.lang);
   return{top:`${backBtn}<h1>${t(2,"설정","Settings")}</h1>`,
   html:`<div>
    <div class="glabel">${t(2,"공부","Study")}</div>
-   <div class="glist">${goRow("langSet",t(2,"🌐 언어","🌐 Language"),esc(st.base==="ko"?"한국어":langName(st.lang)))}${goRow("perDaySet",t(2,"하루 새 단어","New words a day"),t(2,`${st.newPerDay}개`,`${st.newPerDay}`))}</div>
+   <div class="glist">${goRow("langSet",t(2,"🌐 언어","🌐 Language"),esc(st.base==="ko"?"한국어":langName(st.lang)))}${goRow("perDaySet",t(2,"공부 방식","How I study"),t(2,`새 단어 ${st.newPerDay}개 · ${st.flashOnly?"플래시카드":"여러 유형"}`,`${st.newPerDay} new · ${st.flashOnly?"flashcards":"mixed"}`))}</div>
    <div class="glabel">${t(2,"화면 · 소리","Display · sound")}</div>
    <div class="glist">${swRow("sp",t(2,"발음 보기 [익따]","Show pronunciation [익따]"),st.showPron)}${swRow("sr",t(2,"로마자 보기 (ikda)","Show romanization (ikda)"),st.showRoman)}${swRow("ap",t(2,"소리 자동 재생","Play sound automatically"),st.autoplay)}</div>
    <p class="gfoot">${t(3,"로마자는 한글이 익숙해지면 끄는 게 좋아요.","Turn romanization off once Hangul feels easy.")}</p>
@@ -837,9 +849,10 @@ V.langSet=()=>{const st=S.settings,b=baseOf(),cur=st.base==="ko"?"ko":st.lang;
    <p class="gfoot">${t(3,"단어·뜻·예문은 언제나 그대로예요. (스페인어·아랍어·일본어 화면 글자는 3단계에서 번역)","Words, meanings and examples never change. (Spanish, Arabic, Japanese screen text is translated in stage 3)")}</p>`,
   after:()=>{const el=$("#base");el.addEventListener("change",()=>{st.base=el.value;if(el.value==="ko")st.lang="ko";else if(st.lang==="ko"&&cur==="ko")st.lang="mix2";log("setting:base="+el.value);render()})}}};
 /* 12c 하루 새 단어 */
-V.perDaySet=()=>({top:`${backBtn}<h1>${t(2,"하루 새 단어","New words a day")}</h1>`,
-  html:`<div class="glist">${[3,5,7,10,15].map(v=>`<button class="grow-row" data-a="npd" data-v="${v}" aria-pressed="${S.settings.newPerDay===v}"><span class="fill">${t(2,`${v}개`,`${v}`)}${v===7?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${S.settings.newPerDay===v?"✓":""}</span></button>`).join("")}</div>
-   <p class="gfoot">${t(3,"복습할 단어가 많이 쌓이면 새 단어는 저절로 줄어요.","When reviews pile up, new words pause on their own.")}</p>`});
+V.perDaySet=()=>({top:`${backBtn}<h1>${t(2,"공부 방식","How I study")}</h1>`,
+  html:`<div class="glabel">${t(2,"하루 새 단어","New words a day")}</div><div class="glist">${[3,5,7,10,15].map(v=>`<button class="grow-row" data-a="npd" data-v="${v}" aria-pressed="${S.settings.newPerDay===v}"><span class="fill">${t(2,`${v}개`,`${v}`)}${v===7?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${S.settings.newPerDay===v?"✓":""}</span></button>`).join("")}</div>
+   <p class="gfoot">${t(3,"복습할 단어가 많이 쌓이면 새 단어는 저절로 줄어요.","When reviews pile up, new words pause on their own.")}</p>
+   <div class="glabel">${t(2,"단어 테스트 방식","Word test style")}</div><div class="glist">${[[false,"여러 유형 연습","Mixed practice"],[true,"알았어요/몰랐어요만 (플래시카드)","Know / don't know only (flashcards)"]].map(([v,ko,en])=>`<button class="grow-row" data-a="tstyle" data-v="${v}" aria-pressed="${!!S.settings.flashOnly===v}"><span class="fill">${t(2,ko,en)}${v===false?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${!!S.settings.flashOnly===v?"✓":""}</span></button>`).join("")}</div>`});
 V.backupNote=()=>({top:`${backBtn}<h1>${t(2,"기록 백업","Back up")}</h1>`,html:`<p class="muted">${t(3,"공부 기록을 파일로 저장해요. (3단계에서 연결)","Save your study record as a file. (connected in stage 3)")}</p>`,foot:`<button class="btn pri" data-a="backup">${t(1,"파일로 저장","Save file")}</button>`});
 /* 12a 위젯 설정 (one tap deeper): preview + the three widget choices */
 V.widgetSet=()=>{const st=S.settings;const wd=plan().due[0]||SETS[0].word_ids[0],wn=NOTES[wd];const pr=wn.pron;
@@ -1041,6 +1054,8 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"openSet":go("set",{set:d.set});break;
   case"setStudy":startSession("set",{set:d.set});break;
   case"vview":S.vocabView=d.v;render();break;
+  case"famToggle":{const f=d.fam,o=S.famOpen||(S.famOpen={}),was=f in o?o[f]:(S.allSteps||S.test.all||f===fam0());o[f]=!was;{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break}
+  case"weekAll":S.weekAll=!S.weekAll;render();break;
   case"pathToggle":S.pathOpen=!S.pathOpen;render();break;
   case"lang":S.settings.lang=d.v;log("setting:lang="+d.v);{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
   case"star":if(!S.sheet){const y=$("#screen").scrollTop;S.starred[d.id]=!S.starred[d.id];render();$("#screen").scrollTop=y;toast(S.starred[d.id]?t(2,"별표했어요 · 단어장 ⭐ 별표에 모여요","Starred · find it under ⭐ in Words"):t(2,"별표를 뺐어요","Unstarred"));break}
@@ -1063,6 +1078,7 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"copyPrompt":{const v=$("#prompt").textContent;navigator.clipboard?.writeText(v).then(()=>toast(t(1,"복사했어요","Copied")),()=>toast(t(2,"길게 눌러 복사해 주세요","Press and hold to copy")));break}
   case"ask":go("ask",{});break;
   case"askSend":{S.params.sent=true;S.requests.push({at:Date.now()});S.inbox.unshift({id:100+S.requests.length,isNew:false,from:"나",text:"단어 넣기 부탁을 보냈어요 · 처리 중",date:"오늘",go:{to:"set",set:"MINE"}});render();break}
+  case"tstyle":S.settings.flashOnly=d.v==="true";log("setting:flashOnly="+S.settings.flashOnly);render();break;
   case"npd":S.settings.newPerDay=+d.v;log("setting:newPerDay="+d.v);render();break;
   case"backup":toast(t(2,"3단계에서 동작해요","Works from stage 3"));break;
   case"logout":reset();break;
