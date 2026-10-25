@@ -1220,11 +1220,48 @@ const BOOT=(async()=>{
     document.getElementById("simRow").style.display="none";document.getElementById("tmode").style.display="none";
     Object.assign(S,{code:"link:학생",plan:"class",diagDone:true,allSteps:true,me:{country:"",job:"",who:""}});
     S.screen="home";S.params={};
-    /* 내 수업 단어: ?m=<토큰> 이 있고 mine/<토큰>.json 이 있으면 '수업에서 배운 것'에 붙인다. 없으면 조용히 숨긴다 */
+    /* 내 수업 단어(T109d): ?m=<단어 키> 가 있으면 과제 서버(student.words)에서 그 학생 단어만 받아 '수업에서 배운 것'에 붙인다. 없거나 실패하면 조용히 숨긴다.
+       서버 주소는 저장소에 두지 않고 과제 사이트 config.js에서 실행 때 읽는다(공개 저장소에 주소 금지). 키는 그 서버로만 간다 */
     const m=new URLSearchParams(location.search).get("m");
-    if(m&&/^[a-z0-9]{8,40}$/.test(m)){try{const r=await fetch("mine/"+m+".json");if(r.ok){const j=await r.json();
-      j.notes.forEach(n=>{NOTES[n.id]=n;S.stage[n.id]=0;S.pass[n.id]=0});
-      LESSONS.push({id:"L-mine",kind:"lesson",name_ko:j.name_ko,name_en:j.name_en,date:j.date,word_ids:j.notes.map(n=>n.id),pattern_ids:[]})}}catch(e){}}
+    if(m&&/^[a-z0-9]{8,40}$/.test(m)){try{
+      const cfg=await (await fetch("https://g4jy.github.io/kwd-homework/config.js")).text();
+      const api=(cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec)'/)||[])[1];
+      if(api){const r=await fetch(api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.words",m})});
+        const j=await r.json();const W=j&&j.ok&&j.data&&Array.isArray(j.data.words)?j.data.words:[];
+        if(W.length){
+          const ids=[],seen=new Set();
+          const todayKo=new Date().toISOString().slice(0,10);
+          let kidx=null;   // 중앙 DB 단어 색인(분할판만): ko -> "세트id|노트id"
+          if(C){try{kidx=await (await fetch(C.base+"_ko.json?v="+C.ver)).json()}catch(e){kidx={}}}
+          for(const w of W){
+            const ko=(w.ko||"").trim();if(!ko||seen.has(ko))continue;seen.add(ko);
+            let base=null;
+            if(kidx){const e=kidx[ko];if(e){const [sid,nid]=e.split("|");
+              if(!NOTES[nid]){try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{NOTES[n.id]=n})}catch(e2){}}
+              base=NOTES[nid]||null}}
+            else base=Object.values(NOTES).find(n=>n.kind==="word"&&n.ko===ko)||null;
+            const id="m"+(ids.length+1);
+            const stem=ko.endsWith("다")?ko.slice(0,-1):ko,exs=(w.example||"").trim();
+            const ex=exs?{ko:exs,en:"",cloze:exs.includes(stem)?stem:"",src:"수업"}:null;
+            let n;
+            if(base){n=JSON.parse(JSON.stringify(base));n.id=id;if(ex)n.examples=[ex,...(n.examples||[])]}
+            else{n={id:id,kind:"word",ko:ko,en:(w.en||"").trim(),pos:w.pos||"",explain:w.teacher_note||"",phrases:[],dict_examples:[],examples:ex?[ex]:[]};
+              ["yo","usage","contract","pron","roman","video_url","video_title","pron_source","pron_why","explain_en","contract_en"].forEach(k=>n[k]="")}
+            NOTES[id]=n;S.stage[id]=0;S.pass[id]=0;ids.push(id)}
+          LESSONS.push({id:"L-mine",kind:"lesson",name_ko:j.data.name_ko||"내 수업 단어",name_en:j.data.name_en||"My class words",date:(j.data.updated_at||todayKo).slice(0,10),word_ids:ids,pattern_ids:[]})}}
+    }catch(e){}}
+    /* 진도 저장(T109d, 기기 저장 [기본안]): 새로고침해도 이어서. 내 수업 단어(m1…)는 순서가 바뀔 수 있어 단어(ko)로 저장 */
+    try{
+      const PK="kwd.prog.v1:"+(new URLSearchParams(location.search).get("sets")||"");
+      const PF=["stage","pass","assumed","paused","memo","starred"];
+      const toK=id=>/^m\d+$/.test(id)&&NOTES[id]?"m:"+NOTES[id].ko:id, fromK=k=>{if(k.slice(0,2)!=="m:")return k;const f=Object.keys(NOTES).find(i=>/^m\d+$/.test(i)&&NOTES[i].ko===k.slice(2));return f||null};
+      const sv=localStorage.getItem(PK);
+      if(sv){const o=JSON.parse(sv);
+        PF.forEach(f=>{const src=o[f]||{};Object.keys(src).forEach(k=>{const id=fromK(k);if(id&&(f!=="stage"&&f!=="pass"||S.stage[id]!==undefined))S[f][id]=src[k]})});
+        if(o.settings)Object.assign(S.settings,o.settings)}
+      const save=()=>{try{const o={settings:S.settings};PF.forEach(f=>{o[f]={};Object.keys(S[f]).forEach(id=>{o[f][toK(id)]=S[f][id]})});localStorage.setItem(PK,JSON.stringify(o))}catch(e){}};
+      setInterval(save,1500);addEventListener("pagehide",save);document.addEventListener("visibilitychange",save);
+    }catch(e){}
   }
 })().then(()=>render(),()=>{dispatchEvent(new Event("error"))});
 </script>
