@@ -336,13 +336,15 @@ const LEVEL_TOTAL = DATA.levelTotal;
 const LESSONS = STU ? [] : DATA.lessons;
 const chNo=id=>{const m=/^K(\d+)/.exec(id);return m?+m[1]:0};   // K035b -> 35 (T112: 확장 세트는 챕터 아래)
 const STU_CH = STU ? new Set(SETS.map(x=>chNo(x.id)).filter(Boolean)) : null;   // 학생이 연 세트의 챕터 = 공부한 챕터
-const EXP_CH = STU ? (DATA.expansions||[]).filter(x=>STU.includes(x.id)||STU_CH.has(x.chapter_no)) : (DATA.expansions||[]);   // 확장 세트(커리큘럼 최종 확인 전, "새로 추가")
+const BASE_W = STU ? new Set(SETS.flatMap(x=>x.word_ids)) : null;   // T131b: 학생 기본 세트에 이미 있는 단어는 확장에서 뺀다(중복 0)
+const noDup = x=>BASE_W&&x.word_ids.some(w=>BASE_W.has(w)) ? {...x,word_ids:x.word_ids.filter(w=>!BASE_W.has(w))} : x;
+const EXP_CH = STU ? (DATA.expansions||[]).filter(x=>STU.includes(x.id)||STU_CH.has(x.chapter_no)).map(noDup).filter(x=>x.word_ids.length) : (DATA.expansions||[]);   // 확장 세트(커리큘럼 최종 확인 전, "새로 추가")
 /* T131: 챕터 확장이 기본 단어의 XP_CAP 보다 적으면, 학생 레벨 이하(최소 2) 확장 세트를 가까운 챕터부터 '더 많은 단어'로 붙인다. 레벨 밖 0, 세트 통째로 */
 const XP_CAP = 0.5;
 const MORE = (()=>{if(!STU)return[];const lv=Math.max(2,...SETS.map(s=>s.lv||0)),cs=[...STU_CH],lo=Math.min(...cs),hi=Math.max(...cs);
   const base=SETS.reduce((a,s)=>a+s.word_ids.length,0),have0=EXP_CH.reduce((a,x)=>a+x.word_ids.length,0),taken=new Set(EXP_CH.map(x=>x.id));
   const dist=x=>x.chapter_no<lo?lo-x.chapter_no:x.chapter_no>hi?x.chapter_no-hi:0;
-  const pool=(DATA.expansions||[]).filter(x=>!taken.has(x.id)&&+String(x.level).slice(1)<=lv).sort((a,b)=>dist(a)-dist(b)||a.chapter_no-b.chapter_no||(a.id<b.id?-1:1));
+  const pool=(DATA.expansions||[]).filter(x=>!taken.has(x.id)&&+String(x.level).slice(1)<=lv).map(noDup).filter(x=>x.word_ids.length).sort((a,b)=>dist(a)-dist(b)||a.chapter_no-b.chapter_no||(a.id<b.id?-1:1));
   const out=[];let n=have0;for(const x of pool){if(n>=base*XP_CAP)break;out.push({...x,more:true});n+=x.word_ids.length}return out})();
 const EXPANSIONS = EXP_CH.concat(MORE);
 const S = {
