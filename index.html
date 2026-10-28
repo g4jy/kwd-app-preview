@@ -688,7 +688,7 @@ function initCarousels(){document.querySelectorAll("[data-exs]").forEach(box=>{c
   tr.addEventListener("click",e=>{const sl=e.target.closest(".slide");if(!sl||sl.classList.contains("cur")||e.target.closest("button"))return;tr.scrollTo({left:[...tr.children].indexOf(sl)*w(),behavior:"smooth"})});
   upd()})}
 function dictCard(n){const d=n.dict_examples||[];return d.length?`${d.map(x=>`<div class="ex">${esc(x.ko)}${x.en?`<div class="s muted">${esc(x.en)}</div>`:""}</div>`).join("")}<p class="xs muted" style="margin:0">${t(2,"사전 예문 출처","Dictionary examples from")}: Wiktionary (CC BY-SA)</p>`:""}
-function wordAll(n){const st=S.stage[n.id]??0;const src=EXPANSIONS.some(x=>!x.confirmed&&x.word_ids.includes(n.id))?`<span class="tag">${t(2,"새로 추가","New")}</span>`:isLesson(n.id)?`<span class="tag">${t(2,"수업에서","From class")} · ${esc(LESSONS.find(l=>l.word_ids.includes(n.id)).date)}</span>`:S.mine.includes(n.id)?`<span class="tag">${t(2,"내가 넣은 단어","Added by me")}</span>`:"";
+function wordAll(n){const st=S.stage[n.id]??0;const src=EXPANSIONS.some(x=>!x.confirmed&&x.word_ids.includes(n.id))?`<span class="tag">${t(2,"새로 추가","New")}</span>`:isLesson(n.id)?`<span class="tag">${t(2,"수업에서","From class")} · ${esc(LESSONS.find(l=>l.word_ids.includes(n.id)).date)}</span>${AGAIN[n.id]?` <span class="tag">${t(2,"다시 나옴","Again")} · ${esc(AGAIN[n.id].map(d=>d.slice(5)).join(", "))}</span>`:""}`:S.mine.includes(n.id)?`<span class="tag">${t(2,"내가 넣은 단어","Added by me")}</span>`:"";
   return`${src?`<div class="center">${src}</div>`:""}
    ${exCarousel(n)}
    ${hasExplain(n)?teacherCard(n):""}${disCard(n)}${phrasesCard(n)}
@@ -1243,6 +1243,7 @@ $("#simPublic").onclick=()=>{reset();S.code="google:demo";S.me={country:"",job:"
   $("#tmOff").onclick=()=>{S.test={on:false,all:false,label:""};S.allSteps=false;$("#tmState").textContent="(꺼짐)";render()};
 })();
 /* ---------- T109b 시작: 분할판이면 필요한 세트 단어를 받은 뒤 첫 화면. 통짜판은 바로 ---------- */
+const AGAIN={};
 const BOOT=(async()=>{
   const C=DATA.chunks;
   if(C){
@@ -1272,7 +1273,7 @@ const BOOT=(async()=>{
           if(C){try{kidx=await (await fetch(C.base+"_ko.json?v="+C.ver)).json()}catch(e){kidx={}}}
           let dbidx=null;   // ②: 앱 카드는 없지만 중앙 DB에 있는 단어 ko -> [영어 뜻, 품사, 예문 ko, 예문 en]. 필요할 때 한 번만 받는다
           const needDb=async()=>{if(dbidx||!C)return;try{dbidx=await (await fetch(C.base+"_db.json?v="+C.ver)).json()}catch(e){dbidx={}}};
-          let seq=0;
+          let seq=0;const FIRST={};
           /* 수업 단어 3단 매칭(T112): ① 앱 카드가 있으면 그 카드(뜻·예문 6개·설명·이렇게도 써요) ② 중앙 DB에만 있으면 DB 행으로 카드 ③ DB에도 없으면 수업 예문·선생님 설명으로 최소 카드 */
           const mkWord=async(w,ids2,seen2)=>{
             const ko=(w.ko||"").trim();if(!ko||seen2.has(ko))return;seen2.add(ko);
@@ -1292,12 +1293,26 @@ const BOOT=(async()=>{
               if(db&&db[2])n.examples.push({ko:db[2],en:db[3]||"",cloze:db[2].includes(stem)?stem:"",src:"중앙 단어 DB"});
               ["yo","usage","contract","pron","roman","video_url","video_title","pron_source","pron_why","explain_en","contract_en"].forEach(k=>n[k]="")}
             NOTES[id]=n;S.stage[id]=0;S.pass[id]=0;ids2.push(id)};
-          for(const w of W)await mkWord(w,ids,seen);
+          /* T140: 수업 날짜별로 묶는다(최근 날짜가 위). 같은 단어(띄어쓰기·활용형 달라도)가 여러 날이면 처음 배운 날에 한 장만 두고 뒷 날짜에는 '다시 나옴' 표시. 감탄사·숫자만인 줄은 카드에서 뺀다 */
+          await needDb();
+          const lem=k=>{k=(k||"").trim().replace(/\s+/g," ");const has=x=>(kidx&&kidx[x])||(dbidx&&dbidx[x]);if(has(k))return k;
+            for(const [a,b] of [["했어요","하다"],["해요","하다"],["았어요","다"],["었어요","다"],["아요","다"],["어요","다"],["요","다"]])if(k.endsWith(a)){const c=k.slice(0,-a.length)+b;if(has(c))return c}
+            return k};
+          const byDate={},firstOf={};   // 같은 단어 판정은 띄어쓰기를 뺀 기본형으로
+          for(const w of [...W].sort((a,b)=>(a.date||"").localeCompare(b.date||""))){
+            if(w.pos==="interjection"||/^[\d\s]+$/.test(w.ko||""))continue;
+            const dt=(w.date||j.data.updated_at||todayKo).slice(0,10),k=lem(w.ko),kk=k.replace(/\s/g,"");
+            if(firstOf[kk]){const f=firstOf[kk];if(f.date!==dt){(AGAIN[kk]=AGAIN[kk]||[]).includes(dt)||AGAIN[kk].push(dt)}continue}
+            firstOf[kk]={date:dt};(byDate[dt]=byDate[dt]||[]).push(Object.assign({},w,{ko:k}))}
+          const dts=Object.keys(byDate).sort().reverse();
+          for(const dt of dts){const di=[];
+            for(const w of byDate[dt]){const b=di.length;await mkWord(w,di,seen);if(di.length>b)AGAIN[di[di.length-1]]=AGAIN[w.ko.replace(/\s/g,"")]}
+            if(di.length){LESSONS.push({id:"L-d"+dt,kind:"lesson",name_ko:dt.slice(5).replace("-","/")+" 수업",name_en:"Class "+dt.slice(5).replace("-","/"),date:dt,word_ids:di,pattern_ids:[]});ids.push(...di)}}
           /* ③ 관련 단어 별도 세트: 서버가 data.sets=[{name_ko,name_en,words:[{ko,en,pos,example}]}] 를 주면 세트마다 하나씩 붙인다 [미검증: 서버 필드는 아직 없음] */
           const REL=Array.isArray(j.data.sets)?j.data.sets:[];
           for(let r2=0;r2<REL.length;r2++){const rs=REL[r2],rids=[];for(const w of (rs.words||[]))await mkWord(w,rids,seen);
             if(rids.length)LESSONS.push({id:"L-rel"+(r2+1),kind:"lesson",name_ko:rs.name_ko||"관련 단어",name_en:rs.name_en||"Related words",date:(j.data.updated_at||todayKo).slice(0,10),word_ids:rids,pattern_ids:[]})}
-          if(ids.length)LESSONS.unshift({id:"L-mine",kind:"lesson",name_ko:j.data.name_ko||"내 수업 단어",name_en:j.data.name_en||"My class words",date:(j.data.updated_at||todayKo).slice(0,10),word_ids:ids,pattern_ids:[]})}}
+          }}
     }catch(e){}}
     /* 진도 저장(T109d, 기기 저장 [기본안]): 새로고침해도 이어서. 내 수업 단어(m1…)는 순서가 바뀔 수 있어 단어(ko)로 저장 */
     try{
