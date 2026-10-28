@@ -1442,7 +1442,7 @@ const BOOT=(async()=>{
           const dts=Object.keys(byDate).sort().reverse();
           /* T140h: 단어마다 세트 파일을 차례로 받던 것(971줄이면 약 15초)을, 필요한 세트 파일만 모아 8개씩 한꺼번에 받는다 */
           /* T140i: 가장 최근 EAGER개 날짜 묶음만 카드를 다 채우고, 나머지는 단어·뜻만 있는 임시 카드로 먼저 그린 뒤 첫 화면 뒤에 채운다(bgFill) */
-          const EAGER=2;
+          const EAGER=1;
           if(kidx&&C){const need=new Set();dts.slice(0,EAGER).forEach(dt=>byDate[dt].forEach(w=>{const e=kidx[w.ko];if(e){const [sid,nid]=e.split("|");if(!NOTES[nid])need.add(sid)}}));
             const q=[...need],run=async()=>{while(q.length){const sid=q.shift();try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{NOTES[n.id]=n})}catch(e2){}}};
             await Promise.all([loadDb(dts.slice(0,EAGER).flatMap(dt=>byDate[dt].map(w=>w.ko)).filter(k=>!kidx[k])),...Array.from({length:8},run)])}
