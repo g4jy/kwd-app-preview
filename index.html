@@ -1361,7 +1361,8 @@ const BOOT=(async()=>{
     const m=new URLSearchParams(location.search).get("m");
     if(m&&/^[a-z0-9]{8,40}$/.test(m)){try{
       const cfg=await (await fetch("https://g4jy.github.io/kwd-homework/config.js")).text();
-      const api=(cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec)'/)||[])[1];
+      /* T140h: 새 서버(Supabase hw)를 먼저, 없을 때만 옛 Apps Script 주소. 서버가 4만 자 덩어리를 합쳐 words 하나로 준다 */
+      const api=(cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/hw)'/)||cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec)'/)||[])[1];
       if(api){const r=await fetch(api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.words",m})});
         const j=await r.json();const W=j&&j.ok&&j.data&&Array.isArray(j.data.words)?j.data.words:[];
         if(W.length){
