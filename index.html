@@ -1348,7 +1348,7 @@ const bgFill=async()=>{
   DEF.forEach(d=>{(bySet[d.sid]=bySet[d.sid]||[]).push(d)});
   const q=Object.keys(bySet);
   await Promise.all(Array.from({length:6},async()=>{while(q.length){const sid=q.shift();
-    try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{if(!NOTES[n.id])NOTES[n.id]=n})}catch(e){}
+    for(let t=0;t<3&&!bySet[sid].every(d=>NOTES[d.nid]);t++){try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{if(!NOTES[n.id])NOTES[n.id]=n})}catch(e){await new Promise(r=>setTimeout(r,500))}}
     bySet[sid].forEach(d=>{const base=NOTES[d.nid];if(!base)return;const f=JSON.parse(JSON.stringify(base));f.id=d.n.id;if(d.ex)f.examples=[d.ex,...(f.examples||[])];
       Object.keys(d.n).forEach(k=>delete d.n[k]);Object.assign(d.n,f)})}}));
   if(!S.session&&(S.screen==="home"||S.screen==="vocab"))render();
