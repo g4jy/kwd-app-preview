@@ -354,9 +354,9 @@ const PHR = !PHR_ON ? [] : !STU ? DATA.phrases.cards : (()=>{const lv=Math.max(0
 const S = {
   screen:"start", params:{}, history:[], code:"", diagDone:false, plan:"free", me:{country:"",job:"",who:""},
   stage:{}, pass:{}, assumed:{}, paused:{}, memo:{}, starred:{}, todayDone:false, studiedToday:false, sheet:null,
-  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, flashOnly:false,roundGoal:1,autoplay:true, showPron:true, showRoman:false},
+  settings:{base:"en",lang:"ko", newPerDay:7, notiOn:true, notiTime:"08:00", widgetMeaning:false, widgetEvery:3, sleepFrom:23, sleepTo:7, flashOnly:false,roundGoal:1,dailyGoal:10,autoplay:true, showPron:true, showRoman:false},
   session:null, lastSession:null, writing:{}, newSetSeen:false, widgetToday:{}, vocabView:"sets", pathOpen:false,
-  vf:{a:"",b:"",sort:"recent"}, vfVariant:3, exVariant:2, test:{on:false,all:false,label:""}, weekWords:[], rounds:{}, rb:{}, rleft:{}, preview:null, inbox:[], mine:[], requests:[], cheered:false, log:[]
+  vf:{a:"",b:"",sort:"recent"}, vfVariant:3, exVariant:2, test:{on:false,all:false,label:""}, weekWords:[], days:{}, rounds:{}, rb:{}, rleft:{}, preview:null, inbox:[], mine:[], requests:[], cheered:false, log:[]
 };
 
 /* ---------- language: 4 modes for learners (teacher's idea, 2026-10-16) ----------
@@ -414,6 +414,14 @@ function saveMsgs(){const P=PRICE,cur=S.plan==="year"?P.year/12:P.month,even=P.l
 const FORTUNES=[["귀인을 만나는 날","귀인(貴人) = 나를 도와주는 사람","a day to meet someone who helps you"],["말 한마디로 천 냥 빚을 갚는 날","말 한마디에 천 냥 빚도 갚는다 (속담)","one kind word pays off a big debt"],["티끌 모아 태산","작은 것이 모여 큰 것이 돼요 (속담)","every little bit adds up"],["가는 말이 고와야 오는 말이 곱다","좋게 말하면 좋은 말이 돌아와요 (속담)","speak kindly and kindness returns"],["시작이 반이에요","시작하면 반은 한 거예요 (속담)","starting is half the work"],["웃으면 복이 와요","웃는 사람에게 좋은 일이 와요","smile and luck comes"],["금강산도 식후경","배부터 채우고 공부해요 (속담)","eat first, then sightseeing"]];
 function fortune(){const f=FORTUNES[new Date().getDate()%FORTUNES.length];return`<div class="card s" data-fortune><b>🍀 ${t(2,"오늘의 운세","Today's fortune")}</b><span style="font-size:var(--fs-l)">${esc(f[0])}</span><span class="xs muted">${esc(f[1])} · ${esc(f[2])}</span></div>`}
 function log(x){S.log.push(x)}
+/* T142: 연속 일수·하루 목표. S.days = {날짜: 그날 푼 카드 수}(기기에 저장). 쉬는 날 보호: 7일에 하루는 빠져도 연속이 안 끊김 */
+const ymd=(o=0)=>{const d=new Date();d.setDate(d.getDate()-o);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const dayN=o=>S.days[ymd(o)]||0;
+function markStudy(){S.studiedToday=true;const k=ymd();S.days[k]=(S.days[k]||0)+1}
+function streakInfo(){let n=0,last=-99,i=dayN(0)?0:1;for(;i<400;i++){if(dayN(i))n++;else if(i-last>=7&&dayN(i+1))last=i;else break}return{n,rest:last>=0&&last<7}}
+function homeStreak(){const{n}=streakInfo(),g=S.settings.dailyGoal||10,c=dayN(0);
+  return`<p class="center xs muted" style="margin:0">${n?t(2,`${n}일 연속`,`${n}-day streak`):t(2,"오늘 시작해요","Start today")} · ${c>=g?t(2,"오늘 목표 달성","Today's goal done"):t(2,`오늘 ${c} / ${g}`,`Today ${c} / ${g}`)}</p>`}
+const pushState=()=>typeof Notification==="undefined"?"none":Notification.permission;
 function toast(x,ms=1600){const el=$("#toast");el.textContent=x;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,ms)}
 function hideToast(){clearTimeout(toast.t);$("#toast").hidden=true}
 function go(screen,params={},push=true){hideToast();S.why=null;if(screen==="plus")S.plusVisits=(S.plusVisits||0)+1;if(push)S.history.push({screen:S.screen,params:S.params});S.screen=screen;S.params=params;S.sheet=null;render();$("#screen").scrollTop=0}
@@ -486,7 +494,7 @@ function startSession(kind,opts={}){
 const cur=()=>S.session&&S.session.queue[S.session.i];
 function submit(result){const s=S.session,c=cur();
   s.undo={i:s.i,len:s.queue.length,stage:S.stage[c.id],pass:S.pass[c.id],res:s.results.length,ww:S.weekWords.length,queue:[...s.queue],assumed:S.assumed[c.id]};
-  s.results.push({key:c.key,id:c.id,dir:c.dir,result});log(`result:${c.id}:${c.dir}:${result}`);S.studiedToday=true;
+  s.results.push({key:c.key,id:c.id,dir:c.dir,result});log(`result:${c.id}:${c.dir}:${result}`);markStudy();
   if(result==="bad"){s.queue.push({...c,retry:true});S.pass[c.id]=0}
   else if(result==="known"){S.assumed[c.id]=true;S.stage[c.id]=2;S.pass[c.id]=2;s.queue=s.queue.filter((x,i)=>i<=s.i||x.id!==c.id)}
   else if(c.dir==="meet")S.stage[c.id]=Math.max(1,S.stage[c.id]||0);
@@ -599,7 +607,7 @@ V.notice=()=>({html:`<div class="fill"></div><div class="hero center">${t(3,"아
 /* 3 홈: time first, count as detail — a short promise is less scary than a number of words */
 V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fresh=n&&s===SETS[3]&&!S.newSetSeen;
   if(S.todayDone)return{top:homeTop(),
-    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today!")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p>${homeRb()}<div class="fill"></div>`,
+    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today!")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p>${homeStreak()}${homeRb()}<div class="fill"></div>`,
     foot:`<button class="link" data-a="startToday">${t(2,"조금 더 하기","Do a little more")}</button>`};
   /* v2 T063 (U12): nothing due and nothing new → say so instead of "0분 · 단어 0개" */
   if(!d&&!n)return{top:homeTop(),
@@ -608,7 +616,7 @@ V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fres
   return{top:homeTop(),
   html:`<div class="fill" style="flex:2"></div><p class="center" style="margin:0;font-size:var(--fs-l);font-weight:700;color:var(--accent)">${t(2,"오늘 공부","Today")}</p><div class="hero center" style="font-size:96px;line-height:1;letter-spacing:-.02em;margin:-2px 0 6px">${minutes(d,n)}${t(1,"분"," min")}</div>
    <p class="center" style="margin:0;font-size:19px;font-weight:500">${t(2,`단어 ${d+n}개`,`${d+n} words`)}${fresh?` · ${t(2,"새 세트","new set")} '${esc(s.name_ko)}'`:n?t(2,` · 새 단어 ${n}개 포함`,` · ${n} new`):""}</p>
-   <p class="center xs muted" style="margin:-6px 0 0">${t(3,"하나만 해도 오늘 출석이에요","Even one word counts for today")}</p>${homeRb()}<div class="fill" style="flex:3"></div>`,
+   <p class="center xs muted" style="margin:-6px 0 0">${t(3,"하나만 해도 오늘 출석이에요","Even one word counts for today")}</p>${homeStreak()}${homeRb()}<div class="fill" style="flex:3"></div>`,
   foot:`<button class="btn pri" data-a="startToday">${t(1,"시작","Start")}</button>`}};
 
 /* 4 질문 */
@@ -882,8 +890,7 @@ function stepGroups(steps,cur){const fam=n=>n.split(" ")[0],order=[...new Set(st
   return order.slice(f+1).map(g=>{const ns=steps.filter(x=>fam(x)===g).map(x=>x.split(" ")[1]),nums=ns.filter(x=>/^\d+$/.test(x)).map(Number),ex=ns.filter(x=>!/^\d+$/.test(x));
     return esc(g)+"("+(nums.length?(nums.length>1?`${Math.min(...nums)}~${Math.max(...nums)}`:nums[0]):"")+(ex.length?(nums.length?"·":"")+ex.join("·"):"")+")"}).join(" → ")}
 V.progress=()=>{const known=allWords().filter(id=>S.stage[id]>=2).length;const gain=S.weekWords.length;
-  const days=t(2,["월","화","수","목","금","토","일"],["M","T","W","T","F","S","S"]),studied=[1,1,0,1,S.studiedToday||S.todayDone?1:0,0,0],today=4;
-  let streak=0;for(let i=today;i>=0&&studied[i];i--)streak++;
+  const days=t(2,["월","화","수","목","금","토","일"],["M","T","W","T","F","S","S"]),today=(new Date().getDay()+6)%7,studied=[0,1,2,3,4,5,6].map(i=>i<=today&&dayN(today-i)>0?1:0),streak=streakInfo().n;
   const cs=curPathSet(),all=DATA.allSets,ci=all.findIndex(x=>x.id===cs.id),step=all[ci].step_name;
   const inStep=all.filter(x=>x.step_name===step),si=inStep.findIndex(x=>x.id===cs.id);
   const show=S.pathOpen?inStep:inStep.slice(Math.max(0,si-1),si+3);
@@ -893,6 +900,7 @@ V.progress=()=>{const known=allWords().filter(id=>S.stage[id]>=2).length;const g
   return{top:`${backBtn}<h1>${t(2,"내 공부","My progress")}</h1>`,
   html:`<div class="center" style="padding-top:4px"><div class="muted s">${t(2,"외운 단어","Words learned")}</div><div class="hero" style="font-size:56px;line-height:1.1">${known}</div><div class="s">${t(2,"이번 주","this week")} <b>+${gain}</b></div></div>
    <div class="card"><div style="display:flex;justify-content:space-between"><b>${t(2,"이번 주","This week")}</b><span class="s muted">${streak?t(2,`${streak}일 연속`,`${streak}-day streak`):t(2,"오늘 시작해요","start today")}</span></div>
+    <p class="xs muted" style="margin:0">${t(2,`오늘 ${dayN(0)} / ${S.settings.dailyGoal||10}장`,`Today ${dayN(0)} / ${S.settings.dailyGoal||10} cards`)}${streakInfo().rest?" · "+t(2,"쉬는 날 1번 썼어요","1 rest day used"):""}</p>
     <div class="week">${days.map((d,i)=>`<div><i class="${studied[i]?"on":""} ${i===today?"today":""}" aria-label="${d} ${studied[i]?"공부함":"안 함"}"></i>${d}</div>`).join("")}</div></div>
    <div class="card"><div style="display:flex;justify-content:space-between"><b>${esc(step)}</b><span class="s muted">${t(2,"세트","set")} ${si+1} / ${inStep.length}</span></div>
     ${!S.pathOpen&&si>1?`<p class="xs muted" style="margin:0">✓ ${t(2,`앞의 세트 ${si-1}개 완료`,`${si-1} earlier sets done`)}</p>`:""}
@@ -933,6 +941,7 @@ V.settings=()=>{const st=S.settings,ln=LANGS.find(x=>x[0]===st.lang);
    <div class="glabel">${t(2,"알림 · 위젯","Notifications · widget")}</div>
    <div class="glist">${swRow("non",t(2,"아침 단어 알림","Morning word"),st.notiOn)}
     ${st.notiOn?`<label class="grow-row" for="nt"><span class="fill">${t(2,"시간","Time")}</span><input type="time" id="nt" class="timepill" value="${st.notiTime}"></label>`:""}
+    ${st.notiOn&&pushState()==="default"?`<button class="grow-row" data-a="pushAsk"><span class="fill">${t(2,"이 기기 알림 허용","Allow alerts on this device")}</span><span class="val">${t(2,"요청하기","Ask")}</span></button>`:""}
     ${goRow("widgetSet",t(2,"위젯","Widget"),`${st.widgetMeaning?t(2,"뜻도","+ meaning"):t(2,"단어만","word only")} · ${hourName(st.sleepTo)}~${hourName(st.sleepFrom)}`)}</div>
    ${DATA.phoneAppUrl?`<div class="glist" style="margin-top:22px"><a class="grow-row" href="${esc(DATA.phoneAppUrl)}" target="_blank" rel="noopener"><span class="fill">${t(2,"폰 앱 원하면 신청","Want a phone app? Sign up")}</span><span class="chev" aria-hidden="true">›</span></a></div>`:""}
    <div class="glist" style="margin-top:22px">${goRow("backupNote",t(2,"기록 백업","Back up"),"")}<button class="grow-row danger" data-a="logout"><span class="fill">${t(2,"로그아웃","Log out")}</span></button></div>
@@ -952,7 +961,9 @@ V.langSet=()=>{const st=S.settings,b=baseOf(),cur=st.base==="ko"?"ko":st.lang;
   after:()=>{const el=$("#base");el.addEventListener("change",()=>{st.base=el.value;if(el.value==="ko")st.lang="ko";else if(st.lang==="ko"&&cur==="ko")st.lang="mix2";log("setting:base="+el.value);render()})}}};
 /* 12c 하루 새 단어 */
 V.perDaySet=()=>({top:`${backBtn}<h1>${t(2,"공부 방식","How I study")}</h1>`,
-  html:`<div class="glabel">${t(2,"하루 새 단어","New words a day")}</div><div class="glist">${[3,5,7,10,15].map(v=>`<button class="grow-row" data-a="npd" data-v="${v}" aria-pressed="${S.settings.newPerDay===v}"><span class="fill">${t(2,`${v}개`,`${v}`)}${v===7?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${S.settings.newPerDay===v?"✓":""}</span></button>`).join("")}</div>
+  html:`<div class="glabel">${t(2,"하루 목표","Daily goal")}</div><div class="glist">${[5,10,20,30].map(v=>`<button class="grow-row" data-a="dgoal" data-v="${v}" aria-pressed="${(S.settings.dailyGoal||10)===v}"><span class="fill">${t(2,`카드 ${v}장`,`${v} cards`)}${v===10?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${(S.settings.dailyGoal||10)===v?"✓":""}</span></button>`).join("")}</div>
+   <p class="gfoot">${t(3,"못 채워도 하나만 풀면 출석이에요.","Even one card counts as attending.")}</p>
+   <div class="glabel">${t(2,"하루 새 단어","New words a day")}</div><div class="glist">${[3,5,7,10,15].map(v=>`<button class="grow-row" data-a="npd" data-v="${v}" aria-pressed="${S.settings.newPerDay===v}"><span class="fill">${t(2,`${v}개`,`${v}`)}${v===7?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${S.settings.newPerDay===v?"✓":""}</span></button>`).join("")}</div>
    <p class="gfoot">${t(3,"복습할 단어가 많이 쌓이면 새 단어는 저절로 줄어요.","When reviews pile up, new words pause on their own.")}</p>
    <div class="glabel">${t(2,"회독 목표","Round goal")}</div><div class="glist">${[[1,"꾸준히 · 세트마다 1회독","Steady · 1 round per set"],[3,"시험 준비 · 세트마다 3회독","Exam prep · 3 rounds per set"]].map(([v,ko,en])=>`<button class="grow-row" data-a="rgoal" data-v="${v}" aria-pressed="${goal()===v}"><span class="fill">${t(2,ko,en)}${v===1?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${goal()===v?"✓":""}</span></button>`).join("")}</div>
    <p class="gfoot">${t(3,"회독은 세트를 한 번 훑는 거예요. 단어 단계와는 따로 세요.","A round goes through a set once. It is counted apart from word stages.")}</p>
@@ -1111,7 +1122,7 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"v4set":S.vf.a=d.v;S.vf.b="";S.sheet=null;render();break;
   case"spot":S.sceneOpen=S.sceneOpen===d.id?null:d.id;{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
   case"sceneQuizStart":{const sc=SCENES[d.set];const ids=sc.spots.map(x=>x.id).filter(id=>S.stage[id]>=1).sort(()=>Math.random()-.5);S.sceneQuiz={set:d.set,order:ids,i:0,picked:null,ok:null,show:null,wrong:[]};S.sceneOpen=null;go("sceneQuiz",{set:d.set});break}
-  case"scenePick":{const q=S.sceneQuiz;if(q.picked)break;const want=q.order[q.i];q.picked=d.id;q.ok=d.id===want;q.show=want;if(!q.ok)q.wrong.push(want);log(`scene:${want}:${q.ok?"good":"again"}`);if(q.ok)S.studiedToday=true;render();break}
+  case"scenePick":{const q=S.sceneQuiz;if(q.picked)break;const want=q.order[q.i];q.picked=d.id;q.ok=d.id===want;q.show=want;if(!q.ok)q.wrong.push(want);log(`scene:${want}:${q.ok?"good":"again"}`);if(q.ok)markStudy();render();break}
   case"sceneNext":{const q=S.sceneQuiz;q.i++;q.picked=q.ok=q.show=null;if(q.i>=q.order.length&&q.wrong.length){q.order.push(...q.wrong);q.wrong=[]}
     if(q.i>=q.order.length){const set=q.set;S.sceneQuiz=null;back();toast(t(2,"그림 퀴즈 끝! 오늘 공부한 걸로 기록했어요","Picture quiz done · counted for today"))}else render();break}
   case"sceneQuit":S.sceneQuiz=null;back();break;
@@ -1149,7 +1160,7 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"back":back();break;
   case"home":home();break;
   case"showMeaning":S.params.shown=true;render();break;
-  case"noteSelf":{const id=S.params.id;S.params.graded=d.v;S.widgetToday[id]=d.v;S.studiedToday=true;if(d.v==="bad")S.pass[id]=0;log(`result:${id}:widget:${d.v}`);render();break}
+  case"noteSelf":{const id=S.params.id;S.params.graded=d.v;S.widgetToday[id]=d.v;markStudy();if(d.v==="bad")S.pass[id]=0;log(`result:${id}:widget:${d.v}`);render();break}
   case"widgetMore":S.params.more=true;render();break;
   case"widgetClose":home();break;
   case"widgetStart":startSession("today");break;
@@ -1196,6 +1207,8 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"ask":go("ask",{});break;
   case"askSend":{S.params.sent=true;S.requests.push({at:Date.now()});S.inbox.unshift({id:100+S.requests.length,isNew:false,from:"나",text:"단어 넣기 부탁을 보냈어요 · 처리 중",date:"오늘",go:{to:"set",set:"MINE"}});render();break}
   case"tstyle":S.settings.flashOnly=d.v==="true";log("setting:flashOnly="+S.settings.flashOnly);render();break;
+  case"pushAsk":if(pushState()==="default"){Notification.requestPermission().then(r=>{log("push:"+r);render()})}else if(pushState()==="denied"){toast(t(3,"브라우저 설정에서 알림을 허용해 주세요","Allow notifications in your browser settings"),2600);log("push:blocked-note")}break;
+  case"dgoal":S.settings.dailyGoal=+d.v;log("setting:dailyGoal="+d.v);render();break;
   case"npd":S.settings.newPerDay=+d.v;log("setting:newPerDay="+d.v);render();break;
   case"backup":toast(t(2,"3단계에서 동작해요","Works from stage 3"));break;
   case"logout":reset();break;
@@ -1317,7 +1330,7 @@ const BOOT=(async()=>{
     /* 진도 저장(T109d, 기기 저장 [기본안]): 새로고침해도 이어서. 내 수업 단어(m1…)는 순서가 바뀔 수 있어 단어(ko)로 저장 */
     try{
       const PK="kwd.prog.v1:"+(new URLSearchParams(location.search).get("sets")||"");
-      const PF=["stage","pass","assumed","paused","memo","starred"];
+      const PF=["stage","pass","assumed","paused","memo","starred","days"];
       const toK=id=>/^m\d+$/.test(id)&&NOTES[id]?"m:"+NOTES[id].ko:id, fromK=k=>{if(k.slice(0,2)!=="m:")return k;const f=Object.keys(NOTES).find(i=>/^m\d+$/.test(i)&&NOTES[i].ko===k.slice(2));return f||null};
       const sv=localStorage.getItem(PK);
       if(sv){const o=JSON.parse(sv);
