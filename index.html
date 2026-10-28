@@ -1370,6 +1370,9 @@ const BOOT=(async()=>{
     /* 내 수업 단어(T109d): ?m=<단어 키> 가 있으면 과제 서버(student.words)에서 그 학생 단어만 받아 '수업에서 배운 것'에 붙인다. 없거나 실패하면 조용히 숨긴다.
        서버 주소는 저장소에 두지 않고 과제 사이트 config.js에서 실행 때 읽는다(공개 저장소에 주소 금지). 키는 그 서버로만 간다 */
     const m=new URLSearchParams(location.search).get("m");
+    /* T140i: 색인 3개(_ko·_db·_dis)는 서버 응답을 기다리는 동안 미리 받기 시작한다 */
+    const pj=u=>C?fetch(C.base+u+"?v="+C.ver).then(r=>r.json()).catch(()=>({})):Promise.resolve(null);
+    const PRE=m&&/^[a-z0-9]{8,40}$/.test(m)?{ko:pj("_ko.json"),db:pj("_db.json"),dis:pj("_dis.json")}:null;
     if(m&&/^[a-z0-9]{8,40}$/.test(m)){try{
       const cfg=await (await fetch("https://g4jy.github.io/kwd-homework/config.js")).text();
       /* T140h: 새 서버(Supabase hw)를 먼저, 없을 때만 옛 Apps Script 주소. 서버가 4만 자 덩어리를 합쳐 words 하나로 준다 */
@@ -1380,10 +1383,10 @@ const BOOT=(async()=>{
           const ids=[],seen=new Set();
           const todayKo=new Date().toISOString().slice(0,10);
           let kidx=null;   // 중앙 DB 단어 색인(분할판만): ko -> "세트id|노트id"
-          if(C){try{kidx=await (await fetch(C.base+"_ko.json?v="+C.ver)).json()}catch(e){kidx={}}}
+          if(C)kidx=await PRE.ko;
           let dbidx=null;   // ②: 앱 카드는 없지만 중앙 DB에 있는 단어 ko -> [영어 뜻, 품사, 예문 ko, 예문 en]. 필요할 때 한 번만 받는다
           let disx={};   // T140e: ②에도 구분 꼬리표(d/_dis.json)
-          const needDb=async()=>{if(dbidx||!C)return;try{dbidx=await (await fetch(C.base+"_db.json?v="+C.ver)).json()}catch(e){dbidx={}}try{disx=await (await fetch(C.base+"_dis.json?v="+C.ver)).json()}catch(e){disx={}}};
+          const needDb=async()=>{if(dbidx||!C)return;dbidx=await PRE.db;disx=await PRE.dis};
           let seq=0;const FIRST={};
           /* 수업 단어 3단 매칭(T112): ① 앱 카드가 있으면 그 카드(뜻·예문 6개·설명·이렇게도 써요) ② 중앙 DB에만 있으면 DB 행으로 카드 ③ DB에도 없으면 수업 예문·선생님 설명으로 최소 카드 */
           const mkWord=async(w,ids2,seen2,lazy)=>{
