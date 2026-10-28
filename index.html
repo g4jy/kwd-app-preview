@@ -1406,6 +1406,10 @@ const BOOT=(async()=>{
             if(firstOf[kk]){const f=firstOf[kk];if(f.date!==dt){(AGAIN[kk]=AGAIN[kk]||[]).includes(dt)||AGAIN[kk].push(dt)}continue}
             firstOf[kk]={date:dt};String(w.seen_again||"").split(",").map(x=>x.trim().slice(0,10)).filter(x=>/^\d{4}-\d\d-\d\d$/.test(x)&&x!==dt).forEach(x=>{(AGAIN[kk]=AGAIN[kk]||[]).includes(x)||AGAIN[kk].push(x)});(byDate[dt]=byDate[dt]||[]).push(Object.assign({},w,{ko:k}))}
           const dts=Object.keys(byDate).sort().reverse();
+          /* T140h: 단어마다 세트 파일을 차례로 받던 것(971줄이면 약 15초)을, 필요한 세트 파일만 모아 8개씩 한꺼번에 받는다 */
+          if(kidx&&C){const need=new Set();dts.forEach(dt=>byDate[dt].forEach(w=>{const e=kidx[w.ko];if(e){const [sid,nid]=e.split("|");if(!NOTES[nid])need.add(sid)}}));
+            const q=[...need],run=async()=>{while(q.length){const sid=q.shift();try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{NOTES[n.id]=n})}catch(e2){}}};
+            await Promise.all(Array.from({length:8},run))}
           for(const dt of dts){const di=[];
             for(const w of byDate[dt]){const b=di.length;await mkWord(w,di,seen);if(di.length>b)AGAIN[di[di.length-1]]=AGAIN[w.ko.replace(/\s/g,"")]}
             if(di.length){LESSONS.push({id:"L-d"+dt,kind:"lesson",name_ko:dt.slice(5).replace("-","/")+" 수업",name_en:"Class "+dt.slice(5).replace("-","/"),date:dt,word_ids:di,pattern_ids:[]});ids.push(...di)}}
