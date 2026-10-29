@@ -206,7 +206,8 @@ a.grow-row{text-decoration:none}
 .exc .arrows{display:flex;align-items:center;gap:2px}
 .exc .nav.center{justify-content:center;gap:6px;position:relative;min-height:var(--tap-min)}
 .exc .nav.center .cnt-r{position:absolute;left:0}
-.exc .nav.center .icon.sm{width:var(--tap-min);height:var(--tap-min)}
+.exc .nav.center .icon.off{opacity:.38}
+.icon.sm{width:var(--tap-min);height:var(--tap-min)}
 .exc .slide:not(.cur){cursor:pointer}
 .exc.v4 .edge{position:absolute;top:50%;transform:translateY(-50%);width:var(--tap-min);height:var(--tap-min);border-radius:50%;background:var(--surface);border:1px solid var(--line);z-index:2;font-size:20px;display:grid;place-items:center;cursor:pointer}
 .exc.v4{position:relative}.exc.v4 .edge.l{left:-12px}.exc.v4 .edge.r{right:-4px}
@@ -333,6 +334,10 @@ const NOTES = Object.fromEntries(DATA.notes.map(n => [n.id, n]));
 const STU = (()=>{const v=new URLSearchParams(location.search).get("sets");if(!v)return null;const ids=v.split(",").map(x=>x.trim()).filter(Boolean);return ids.length?ids:null})();
 const HUB_REQ = "https://g4jy.github.io/kwd-homework/me.html?req=";
 const SETS = STU ? STU.map(id=>DATA.sets.find(x=>x.id===id)).filter(Boolean) : DATA.sets;
+/* T148b 나라 카드: ?nat=프랑스,스페인(허브가 학생 정보 정본의 from·live 순으로 붙임)이 있으면 그 나라 카드를 열린 첫 세트 맨 앞으로(다른 세트에서는 뺌) */
+(()=>{if(!STU||!SETS.length)return;const q=new URLSearchParams(location.search).get("nat");if(!q)return;
+  const ids=q.split(",").map(x=>x.trim()).filter(Boolean).map(k=>(DATA.notes.find(n=>n.kind==="word"&&n.ko===k)||{}).id).filter(Boolean);if(!ids.length)return;
+  const st=new Set(ids);SETS.forEach(s=>{s.word_ids=s.word_ids.filter(x=>!st.has(x))});SETS[0].word_ids=[...ids,...SETS[0].word_ids]})();
 /* one set of names for how well a word is known, used everywhere (list tags, filters, quick chip) */
 const STAGES = ["새 단어","잘 몰라요","외웠어요","외웠어요","쓸 수 있어요"];  /* internal 2 = learned, 3 = long-term; students see one "외웠어요" */
 const LEVEL_TOTAL = DATA.levelTotal;
@@ -425,7 +430,7 @@ function streakInfo(){let n=0,last=-99,i=dayN(0)?0:1;for(;i<400;i++){if(dayN(i))
 function homeStreak(){const{n}=streakInfo(),g=S.settings.dailyGoal||10,c=dayN(0);
   return`<p class="center xs muted" style="margin:0">${n?t(2,`${n}일 연속`,`${n}-day streak`):t(2,"오늘 시작해요","Start today")} · ${c>=g?t(2,"오늘 목표 달성","Today's goal done"):t(2,`오늘 ${c} / ${g}`,`Today ${c} / ${g}`)}</p>`}
 const pushState=()=>typeof Notification==="undefined"?"none":Notification.permission;
-function toast(x,ms=1600){const el=$("#toast");el.textContent=x;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,ms)}
+function toast(x,ms=1600){toast.snd=0;const el=$("#toast");el.textContent=x;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,ms)}
 function hideToast(){clearTimeout(toast.t);$("#toast").hidden=true}
 function go(screen,params={},push=true){if((screen==="q"||screen==="note")&&holdPending(screen,params,push))return;hideToast();S.why=null;if(screen==="plus")S.plusVisits=(S.plusVisits||0)+1;if(push)S.history.push({screen:S.screen,params:S.params});S.screen=screen;S.params=params;S.sheet=null;render();$("#screen").scrollTop=0}
 function back(){hideToast();const h=S.history.pop();if(h){S.screen=h.screen;S.params=h.params;S.sheet=null;render()}else home()}
@@ -530,15 +535,21 @@ function render(){
   $("#simPlan").textContent=isPlus()?`플러스(${PLAN_NAME[S.plan][0]})로 보기 중`:"무료로 보기 중";
   (r.after||(()=>{}))();
   if(S.sheet==="memo"){const m=$("#memo"),b=$("[data-a=memoSave]"),orig=S.memo[S.params.id]||"";const upd=()=>b.disabled=m.value===orig;m.addEventListener("input",upd);upd()}
-  initCarousels();runWhy();
+  initCarousels();runWhy();AUD.load();markSnd();
 }
 const backBtn=`<button class="icon" data-a="back" aria-label="뒤로">←</button>`;
 const sound=n=>`<button class="icon" data-a="sound" data-w="${n.id}" aria-label="듣기" style="margin:0 auto">🔈</button>`;
 /* T116 선생님 목소리: 소리 파일(a/w/<노트id>.mp3, a/e/<예문id>.mp3)이 있는 것만 틀고, 없으면 예전 안내 그대로. 목록 a/_have.json 은 처음 누를 때 한 번 받는다 */
-const AUD={have:null,au:null};
-async function playSound(kind,id){const b=DATA.audioBase||"a/";if(!AUD.have)AUD.have=fetch(b+"_have.json").then(r=>r.ok?r.json():{}).catch(()=>({}));const h=await AUD.have;
-  if(!id||!(h[kind]||[]).includes(id)){toast("🔈 (3단계에서 실제 소리)");return}
-  if(AUD.au)AUD.au.pause();const wb=kind==="h"&&(h.hw||[]).includes(id);const mk=e=>new Audio(b+kind+"/"+id+"."+e);AUD.au=mk(wb?"webm":"mp3");AUD.au.play().catch(()=>{if(wb){AUD.au=mk("mp3");AUD.au.play().catch(()=>toast(t(2,"소리를 틀 수 없어요","Can't play the sound")))}else toast(t(2,"소리를 틀 수 없어요","Can't play the sound"))})}
+const AUD={have:null,set:null,au:null};
+AUD.load=()=>{const b=DATA.audioBase||"a/";if(!AUD.have)AUD.have=fetch(b+"_have.json").then(r=>r.ok?r.json():{}).catch(()=>({})).then(h=>{AUD.set={};["w","e","h"].forEach(k=>AUD.set[k]=new Set(h[k]||[]));AUD.hw=new Set(h.hw||[]);markSnd();return h});return AUD.have};
+/* T150 소리는 선생님 목소리(Dongjae 클론·선생님 녹음)만: 목록에 없는 건 스피커를 흐리게 하고 누르면 '준비 중' 알림 */
+const sndKind=el=>el.dataset.a==="hgSound"?["h",el.dataset.h]:el.dataset.e!==undefined?["e",el.dataset.e]:["w",el.dataset.w];
+function markSnd(){if(!AUD.set)return;document.querySelectorAll('[data-a=sound],[data-a=hgSound]').forEach(el=>{const[k,id]=sndKind(el);el.classList.toggle("off",!(id&&AUD.set[k].has(id)))})}
+const soundSoon=()=>{toast(["Dongjae is recording this one — coming soon","Dongjae's voice: 준비 중","선생님 목소리 준비 중이에요","선생님 목소리로 준비 중이에요"][TIER[S.settings.lang]],1500);toast.snd=1};
+async function playSound(kind,id){await AUD.load();const b=DATA.audioBase||"a/";
+  if(!id||!AUD.set[kind].has(id)){soundSoon();return}
+  if(AUD.au)AUD.au.pause();const wb=kind==="h"&&AUD.hw.has(id)&&document.createElement("audio").canPlayType('audio/webm; codecs="opus"')!=="";const mk=e=>new Audio(b+kind+"/"+id+"."+e);AUD.au=mk(wb?"webm":"mp3");AUD.au.play().catch(()=>{if(wb){AUD.au=mk("mp3");AUD.au.play().catch(()=>toast(t(2,"소리를 틀 수 없어요","Can't play the sound")))}else toast(t(2,"소리를 틀 수 없어요","Can't play the sound"))})}
+document.addEventListener("click",e=>{if(toast.snd&&!e.target.closest("[data-a=sound].off,[data-a=hgSound].off")){hideToast()}});
 const homeTop=()=>{const nw=S.inbox.some(m=>m.isNew);return`<span style="flex:1"></span><button class="icon bell ${nw?"on":""}" data-a="inbox" aria-label="알림${nw?" (새 알림 있음)":""}">🔔</button><button class="icon" data-a="menu" aria-label="메뉴">☰</button>`};
 /* pronunciation line: dictionary pronunciation first (krdict), then auto; romanization optional */
 function pronLine(n){const st=S.settings,base=ans(n),pr=n.dict_pron||n.pron;const bits=[];
@@ -674,7 +685,7 @@ function phrasesCard(n){return(n.phrases||[]).length?`<div class="card s"><b>${t
 function srcL(v){return v==="AI 생성 · 검수"?t(2,v,"AI-generated · reviewed"):v}
 function exCarousel(n){const ours=n.examples.map(e=>e.locked?({html:`<span class="muted">🔒 ${t(2,"잠긴 예문","Locked example")}</span>`,en:"",src:"",tip:""}):({eid:e.id,html:hl(e),en:e.en,src:e.src||"",tip:e.tip?t(3,e.tip,e.tip_en||e.tip):""})),dict=(n.dict_examples||[]).map(x=>({html:esc(x.ko),en:x.en||"",src:x.src||t(2,"사전","dictionary")}));
   const all=[...ours,...dict];if(!all.length)return"";
-  const card=(x,k)=>`<div class="slide" role="group" data-k="${k}" aria-label="예문 ${k+1}/${all.length}">${(S.exVariant===3||S.exVariant===4)&&all.length>1?`<span class="xs muted pg">${k+1}/${Math.min(all.length,5)+(all.length>5?1:0)}</span>`:""}<div class="ko">${x.html}</div>${x.en?`<div class="s muted">${esc(x.en)}</div>`:""}${x.tip?`<div class="xs muted tip">💡 ${esc(x.tip)}</div>`:""}${x.src?`<div class="xs muted">${t(2,"출처","Source")}: ${esc(srcL(x.src))}</div>`:""}<button class="icon sm play" data-a="sound" data-e="${x.eid||""}" aria-label="예문 듣기">🔈</button></div>`;
+  const card=(x,k)=>`<div class="slide" role="group" data-k="${k}" aria-label="예문 ${k+1}/${all.length}">${(S.exVariant===3||S.exVariant===4)&&all.length>1?`<span class="xs muted pg">${k+1}/${Math.min(all.length,5)+(all.length>5?1:0)}</span>`:""}<div class="ko">${x.html}</div>${x.en?`<div class="s muted">${esc(x.en)}</div>`:""}${x.tip?`<div class="xs muted tip">💡 ${esc(x.tip)}</div>`:""}${x.src?`<div class="xs muted">${t(2,"출처","Source")}: ${esc(srcL(x.src))}</div>`:""}${k===0?`<button class="icon sm play" data-a="sound" data-e="${x.eid||""}" aria-label="예문 듣기">🔈</button>`:""}</div>`;
   if(all.length===1)return`<div class="exc">${card(all[0],0).replace('class="slide"','class="slide" style="flex:none"')}</div>`;
   const shown=all.slice(0,5),rest=all.length-shown.length,pages=shown.length+(rest?1:0);
   const v=S.exVariant||2;
@@ -1225,7 +1236,7 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"hgPick":{const q=S.hgq;if(q.pick!==null)break;q.pick=+d.i;if(q.qs[q.i].opts[q.pick]===q.qs[q.i].ans)q.ok++;markStudy();render();break}
   case"hgNext":S.hgq.i++;S.hgq.pick=null;render();break;
   case"hgAgain":S.hgq={u:S.hgq.u,qs:hgMake(hgU(S.hgq.u)),i:0,ok:0,pick:null};render();break;
-  case"sound":d.e?playSound("e",d.e):d.w?playSound("w",d.w):toast("🔈 (3단계에서 실제 소리)");break;
+  case"sound":d.e!==undefined?playSound("e",d.e):playSound("w",d.w);break;
   case"why":S.why=S.why===d.id?null:d.id;log("why:"+d.id);{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
   case"whyPlay":runWhy();break;
   case"video":log("video:youtube");break;
