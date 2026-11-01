@@ -168,7 +168,7 @@ textarea{min-height:100px;font-size:var(--fs-m)}
 .spot.good i{background:#3c9a5f;border-color:#3c9a5f;animation:none}.spot.bad i{background:#c0392b;border-color:#c0392b;animation:none}
 @keyframes ripple{0%{box-shadow:0 0 0 0 rgba(47,53,59,.3)}70%{box-shadow:0 0 0 14px rgba(47,53,59,0)}100%{box-shadow:0 0 0 0 rgba(47,53,59,0)}}
 @media (prefers-reduced-motion:reduce){.spot i{animation:none}}
-.minicard{position:absolute;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:0;box-shadow:0 2px 8px rgba(15,26,59,.15);font:inherit;color:inherit;cursor:pointer;min-width:110px}
+.minicard{position:absolute;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:0;border-color:var(--muted);font:inherit;color:inherit;cursor:pointer;min-width:110px}
 .minicard b{font-size:var(--fs-l)}
 .listhead{display:flex;align-items:center;justify-content:space-between;min-height:36px}
 .link.strong{font-weight:700}.link:disabled{opacity:.35;cursor:default}
@@ -575,7 +575,8 @@ async function playSound(kind,id){await AUD.load();const b=DATA.audioBase||"a/";
   if(!id||!AUD.set[kind].has(id)){soundSoon();return}
   if(AUD.au)AUD.au.pause();const wb=kind==="h"&&AUD.hw.has(id)&&document.createElement("audio").canPlayType('audio/webm; codecs="opus"')!=="";const mk=e=>new Audio(b+kind+"/"+id+"."+e);AUD.au=mk(wb?"webm":"mp3");AUD.au.play().catch(()=>{if(wb){AUD.au=mk("mp3");AUD.au.play().catch(()=>toast(t(2,"소리를 틀 수 없어요","Can't play the sound")))}else toast(t(2,"소리를 틀 수 없어요","Can't play the sound"))})}
 document.addEventListener("click",e=>{if(toast.snd&&!e.target.closest("[data-a=sound].off,[data-a=hgSound].off")){hideToast()}});
-const homeTop=()=>{const nw=S.inbox.some(m=>m.isNew);return`<span style="flex:1"></span><button class="icon bell ${nw?"on":""}" data-a="inbox" aria-label="알림${nw?" (새 알림 있음)":""}">🔔</button><button class="icon" data-a="menu" aria-label="메뉴">☰</button>`};
+const langQuick=()=>`<button class="icon" data-a="langQuick" aria-label="${S.settings.lang==="en"?"한국어로 보기":"Switch to English"}" style="font-size:var(--fs-s,14px);font-weight:700">${S.settings.lang==="en"?"한":"EN"}</button>`;
+const homeTop=()=>{const nw=S.inbox.some(m=>m.isNew);return`<span style="flex:1"></span>${langQuick()}<button class="icon bell ${nw?"on":""}" data-a="inbox" aria-label="알림${nw?" (새 알림 있음)":""}">🔔</button><button class="icon" data-a="menu" aria-label="메뉴">☰</button>`};
 /* pronunciation line: dictionary pronunciation first (krdict), then auto; romanization optional */
 function pronLine(n){const st=S.settings,base=ans(n),pr=n.dict_pron||n.pron;const bits=[];
   if(st.showPron&&pr&&pr!==base)bits.push(`[${esc(pr)}]`);if(st.showRoman&&n.roman)bits.push(esc(n.roman));
@@ -617,7 +618,7 @@ const hasExplain=n=>!!(n.explain||n.video_url||(n.phrases||[]).length);
 
 /* 1 시작 */
 V.start=()=>({html:`<div class="fill"></div>
-  <div class="hero center">${t(2,"안녕하세요!","Hello!")}</div>
+  <div class="hero center">${t(2,"안녕하세요!","Hello")}</div>
   <p class="center muted" style="margin:0">${t(3,"선생님이 알려 준 코드를 넣어 주세요.","Enter the code from your teacher.")}</p>
   <input type="text" id="code" autocomplete="off" aria-label="학생 코드" placeholder="${t(1,"코드","Code")}" value="${esc(S.code)}">
   <div class="fill"></div>`,
@@ -647,7 +648,7 @@ V.notice=()=>({html:`<div class="fill"></div><div class="hero center">${t(3,"아
 /* 3 홈: time first, count as detail — a short promise is less scary than a number of words */
 V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fresh=n&&s===SETS[3]&&!S.newSetSeen;
   if(S.todayDone)return{top:homeTop(),
-    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today!")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p>${homeStreak()}${homeRb()}<div class="fill"></div>`,
+    html:`<div class="fill"></div><div class="hero center">${t(2,"오늘은 끝!","All done today")}</div><p class="center muted" style="margin:0">${S.lastCount?t(2,`단어 ${S.lastCount}개 공부했어요 · `,`${S.lastCount} words today · `):""}${t(2,"내일 또 만나요","See you tomorrow")}</p>${homeStreak()}${homeRb()}<div class="fill"></div>`,
     foot:`<button class="link" data-a="startToday">${t(2,"조금 더 하기","Do a little more")}</button>${rndLink()}${hgLink()}`};
   /* v2 T063 (U12): nothing due and nothing new → say so instead of "0분 · 단어 0개" */
   if(!d&&!n)return{top:homeTop(),
@@ -662,7 +663,7 @@ V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fres
 /* 4 질문 */
 const starBtn=id=>`<button class="icon star" data-a="star" data-id="${id}" aria-pressed="${!!S.starred[id]}" aria-label="${S.starred[id]?"별표 빼기":"별표하기 (나중에 모아서 복습)"}">${S.starred[id]?"★":"☆"}</button>`;
 function sessionTop(){const s=S.session;const pct=Math.round(100*s.i/s.queue.length);
-  return`<button class="icon" data-a="stop" aria-label="그만하기">✕</button><div class="prog" aria-label="진행 ${pct}%"><i style="width:${pct}%"></i></div>${s.undo?`<button class="icon" data-a="undo" aria-label="직전 카드 되돌리기">↶</button>`:`<span style="width:48px"></span>`}`}
+  return`<button class="icon" data-a="stop" aria-label="그만하기">✕</button><div class="prog" aria-label="진행 ${pct}%"><i style="width:${pct}%"></i></div>${langQuick()}${s.undo?`<button class="icon" data-a="undo" aria-label="직전 카드 되돌리기">↶</button>`:`<span style="width:48px"></span>`}`}
 V.q=()=>{const s=S.session,c=cur(),n=NOTES[c.id];
   if(c.dir==="meet")return{top:sessionTop(),
     html:`<p class="center xs muted" style="margin:8px 0 0">${t(1,"새 단어","New word")}</p><div class="fill"></div>${wordHead(n)}${exBox(ex(n))}<p class="center xs muted" style="margin:0">${t(3,"소리 내어 한 번 따라 해 보세요","Say it out loud once")}</p><div class="fill"></div>`,
@@ -886,7 +887,7 @@ function hgMake(u){const q=[],all=hgAll();const opts=(a,x)=>shuffle([...new Set(
     shuffle(ex).slice(0,8).forEach(e=>q.push({p:`‘${esc(e.written)}’`,pt:t(2,"어떻게 읽어요?","How is it read?"),ans:e.read_as,opts:opts(e.read_as,shuffle([...new Set(rd.filter(y=>y!==e.read_as))]).slice(0,3))}))}
   return q}
 V.hgq=()=>{const q=S.hgq,u=hgU(q.u);
-  if(q.i>=q.qs.length)return{top:`${backBtn}<h1>${u.code} · ${t(2,"퀴즈","Quiz")}</h1>`,html:`<div class="fill"></div><div class="hero center" data-hgres>${q.ok} / ${q.qs.length}</div><p class="center muted" style="margin:0">${q.ok===q.qs.length?t(2,"다 맞았어요!","All correct!"):t(2,"틀린 건 다시 보면 돼요","Review what you missed")}</p><div class="fill"></div>`,
+  if(q.i>=q.qs.length)return{top:`${backBtn}<h1>${u.code} · ${t(2,"퀴즈","Quiz")}</h1>`,html:`<div class="fill"></div><div class="hero center" data-hgres>${q.ok} / ${q.qs.length}</div><p class="center muted" style="margin:0">${q.ok===q.qs.length?t(2,"다 맞았어요!","All correct"):t(2,"틀린 건 다시 보면 돼요","Review what you missed")}</p><div class="fill"></div>`,
     foot:`<button class="btn" data-a="hgAgain">${t(2,"다시 풀기","Again")}</button><button class="btn pri" data-a="back">${t(2,"마치기","Finish")}</button>`};
   const c=q.qs[q.i],picked=q.pick!==null;
   return{top:`${backBtn}<h1>${u.code} · ${q.i+1} / ${q.qs.length}</h1>`,
@@ -1069,7 +1070,7 @@ V.langSet=()=>{const st=S.settings,b=baseOf(),cur=st.base==="ko"?"ko":st.lang;
    <div class="glabel">${t(2,"이렇게 바뀌어요","What changes")} · <mark>${t(2,"노란색","yellow")}</mark> = ${t(2,"한국어","Korean")}</div>
    ${langPreview(cur)}
    <p class="gfoot">${t(3,"단어·뜻·예문은 언제나 그대로예요. (스페인어·아랍어·일본어 화면 글자는 3단계에서 번역)","Words, meanings and examples never change. (Spanish, Arabic, Japanese screen text is translated in stage 3)")}</p>`,
-  after:()=>{const el=$("#base");el.addEventListener("change",()=>{st.base=el.value;if(el.value==="ko")st.lang="ko";else if(st.lang==="ko"&&cur==="ko")st.lang="mix2";log("setting:base="+el.value);render()})}}};
+  after:()=>{const el=$("#base");el.addEventListener("change",()=>{st.base=el.value;st.langChosen=1;if(el.value==="ko")st.lang="ko";else if(st.lang==="ko"&&cur==="ko")st.lang="mix2";log("setting:base="+el.value);render()})}}};
 /* 12c 하루 새 단어 */
 V.perDaySet=()=>({top:`${backBtn}<h1>${t(2,"공부 방식","How I study")}</h1>`,
   html:`<div class="glabel">${t(2,"하루 목표","Daily goal")}</div><div class="glist">${[5,10,20,30].map(v=>`<button class="grow-row" data-a="dgoal" data-v="${v}" aria-pressed="${(S.settings.dailyGoal||10)===v}"><span class="fill">${t(2,`카드 ${v}장`,`${v} cards`)}${v===10?` <span class="xs muted">${t(2,"기본","default")}</span>`:""}</span><span aria-hidden="true">${(S.settings.dailyGoal||10)===v?"✓":""}</span></button>`).join("")}</div>
@@ -1342,7 +1343,8 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);
   case"famToggle":{const f=d.fam,o=S.famOpen||(S.famOpen={}),was=f in o?o[f]:(S.allSteps||S.test.all||f===fam0());o[f]=!was;{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break}
   case"weekAll":S.weekAll=!S.weekAll;render();break;
   case"pathToggle":S.pathOpen=!S.pathOpen;render();break;
-  case"lang":S.settings.lang=d.v;log("setting:lang="+d.v);{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
+  case"langQuick":S.settings.lang=S.settings.lang==="en"?"ko":"en";S.settings.langChosen=1;{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
+  case"lang":S.settings.lang=d.v;S.settings.langChosen=1;log("setting:lang="+d.v);{const y=$("#screen").scrollTop;render();$("#screen").scrollTop=y}break;
   case"star":if(!S.sheet){const y=$("#screen").scrollTop;S.starred[d.id]=!S.starred[d.id];render();$("#screen").scrollTop=y;toast(S.starred[d.id]?t(2,"별표했어요 · 단어장 ⭐ 별표에 모여요","Starred · find it under ⭐ in Words"):t(2,"별표를 뺐어요","Unstarred"));break}
     S.starred[d.id]=!S.starred[d.id];S.sheet=null;render();toast(S.starred[d.id]?t(2,"별표했어요 · 단어장에서 모아 볼 수 있어요","Starred · see them in Words"):t(2,"별표를 뺐어요","Unstarred"));break;
   case"pause":S.paused[d.id]=!S.paused[d.id];S.sheet=null;render();toast(S.paused[d.id]?t(2,"복습에서 뺐어요 · 단어장 '뺀 단어'에 있어요","Removed from reviews · see 'Removed' in Words"):t(2,"다시 복습에 나와요","Back in reviews"));break;
@@ -1545,7 +1547,9 @@ const BOOT=(async()=>{
       if(sv){const o=JSON.parse(sv);
         if(Array.isArray(o.mineDb)){for(const m of o.mineDb){try{await addDbWord(m)}catch(e){}}}   // 내가 고른 DB 카드를 먼저 되살려야 아래 단계 기록이 붙는다
         PF.forEach(f=>{const src=o[f]||{};Object.keys(src).forEach(k=>{const id=fromK(k);if(id&&(f!=="stage"&&f!=="pass"||S.stage[id]!==undefined))S[f][id]=src[k]})});
-        if(o.settings)Object.assign(S.settings,o.settings);
+        if(o.settings){Object.assign(S.settings,o.settings);
+          /* T155e: 구 기본(한국어)이 저장된 기존 학생은 1회 영어로. 직접 고른 값(langChosen)은 유지 */
+          if(!o.settings.langChosen){S.settings.lang="en";if(S.settings.base==="ko")S.settings.base="en"}}
         if(Array.isArray(o.pend))S.pend=o.pend;
 }
       /* T150e: 과제에서 알게 된 단어를 올리기만 한다(앱 기록을 낮추지 않음). 1=조금 앎(stage 1, 복습 간격 짧게), 2=앎(stage 2, 아는 단어) */
