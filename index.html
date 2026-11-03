@@ -1496,7 +1496,7 @@ const BOOT=(async()=>{
               if(!NOTES[nid]){try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{NOTES[n.id]=n})}catch(e2){}}
               base=NOTES[nid]||null}}
             else base=Object.values(NOTES).find(n=>n.kind==="word"&&n.ko===ko)||null;
-            if(base){const n=JSON.parse(JSON.stringify(base));n.id=id;if(ex)n.examples=[ex,...(n.examples||[])];return n}
+            if(base&&!base.hold){const n=JSON.parse(JSON.stringify(base));n.id=id;if(ex)n.examples=[ex,...(n.examples||[])];return n}
             const stem=ko.endsWith("다")?ko.slice(0,-1):ko;
             if(!ko.startsWith("-"))await loadDb([ko]);
             const db=ko.startsWith("-")?null:(DBI[ko]||null);
