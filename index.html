@@ -58,6 +58,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .word{font-size:var(--fs-word);font-weight:700;line-height:1.2;word-break:keep-all;text-align:center}
 .mean{font-size:var(--fs-l);text-align:center}
 .prog{height:8px;background:var(--box);border-radius:99px;overflow:hidden;flex:1}
+.v2state .prog{flex:none;align-self:center}
 .prog>i{display:block;height:100%;background:var(--accent);transition:width var(--t-slow) var(--ease-out)}
 .ex{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
 /* '왜?' — why the sound differs from the spelling: jamo tiles, the moving/changing ones animate (teacher 2026-10-18); hidden until tapped */
@@ -1460,11 +1461,26 @@ const holdPending=(screen,params,push)=>{
   BGP.then(()=>{if(screen==="q"&&S.session!==ses)return;go(screen,params,push)});return true};
 /* T150h: 테스트용 링크·테스트 모드는 ?dev=1 일 때만 보인다(학생·일반 화면 0) */
 if(/[?&]dev=1(&|$)/.test(location.search)&&!STU){document.getElementById("simRow").hidden=false;document.getElementById("tmode").hidden=false}
+var EXPLATER=[];
+/* T150i: 첫 화면 뒤에 확장 세트 파일을 6개씩 받아 EXPANSIONS 를 되돌려 놓는다 */
+const loadExp=async()=>{const L=EXPLATER;if(!L.length||!DATA.chunks)return;const C=DATA.chunks,q=L.slice(),seen=new Set();
+  await Promise.all(Array.from({length:6},async()=>{while(q.length){const s=q.shift();if(seen.has(s.id))continue;seen.add(s.id);
+    for(let t=0;t<3;t++){try{const r=await fetch(C.base+s.id+".json?v="+C.ver);if(!r.ok)throw 0;(await r.json()).forEach(n=>{if(!NOTES[n.id])NOTES[n.id]=n});break}catch(e){await new Promise(r=>setTimeout(r,500))}}}}));
+  EXPLATER=[];EXPANSIONS.push(...L);window.EXPDONE=true;
+  if(!S.session&&(S.screen==="home"||S.screen==="vocab"))render()};
 const BOOT=(async()=>{
   const C=DATA.chunks;
+  /* T150i: 서버 설정·색인은 세트 받기와 동시에 시작(옛: 세트를 다 받은 뒤 시작) */
+  const MQ=STU?new URLSearchParams(location.search).get("m"):null,MOK=!!(MQ&&/^[a-z0-9]{8,40}$/.test(MQ));
+  const pj=u=>C?fetch(C.base+u+"?v="+C.ver).then(r=>r.json()).catch(()=>({})):Promise.resolve(null);
+  const PRE=MOK?{ko:pj("_ko.json"),dk:pj("_dbkeys.json"),dis:pj("_dis.json")}:null;
+  const CFGP=MOK?fetch("https://g4jy.github.io/kwd-homework/config.js").then(r=>r.text()):null;if(CFGP)CFGP.catch(()=>{});
+  const SRVP=api=>fetch(api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.words",m:MQ})});
   if(DATA.chunks&&"serviceWorker" in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});   // T140j: 두 번째부터 d/ 파일을 기기에서
   if(C){
-    const need=STU?[...SETS,...EXPANSIONS]:[...DATA.sets,...(DATA.expansions||[])];   // 학생 링크는 열린 세트만, 미리보기는 전부
+    /* T150i: 학생 링크는 기본 세트만 받고 첫 화면을 그린다. 확장 세트는 첫 화면 뒤에 이어 받는다(그동안 EXPANSIONS 는 비워 둠). 서버(student.words)·색인도 세트와 동시에 시작 */
+    EXPLATER=STU?EXPANSIONS.splice(0):[];
+    const need=STU?[...SETS]:[...DATA.sets,...(DATA.expansions||[])];   // 학생 링크는 열린 기본 세트만, 미리보기는 전부
     const seen=new Set();let done=0;const msg=document.querySelector("#v2load .muted");
     const one=async s=>{if(seen.has(s.id))return;seen.add(s.id);
       const r=await fetch(C.base+s.id+".json?v="+C.ver);if(!r.ok)throw new Error("HTTP "+r.status);
@@ -1477,15 +1493,12 @@ const BOOT=(async()=>{
     S.screen="home";S.params={};
     /* 내 수업 단어(T109d): ?m=<단어 키> 가 있으면 과제 서버(student.words)에서 그 학생 단어만 받아 '수업에서 배운 것'에 붙인다. 없거나 실패하면 조용히 숨긴다.
        서버 주소는 저장소에 두지 않고 과제 사이트 config.js에서 실행 때 읽는다(공개 저장소에 주소 금지). 키는 그 서버로만 간다 */
-    const m=new URLSearchParams(location.search).get("m");
-    /* T140i/j: 색인 3개(_ko·_dbkeys·_dis; DB 행 자체는 _db0~31 조각을 필요할 때)는 서버 응답을 기다리는 동안 미리 받기 시작한다 */
-    const pj=u=>C?fetch(C.base+u+"?v="+C.ver).then(r=>r.json()).catch(()=>({})):Promise.resolve(null);
-    const PRE=m&&/^[a-z0-9]{8,40}$/.test(m)?{ko:pj("_ko.json"),dk:pj("_dbkeys.json"),dis:pj("_dis.json")}:null;
+    const m=MQ;
     if(m&&/^[a-z0-9]{8,40}$/.test(m)){try{
-      const cfg=await (await fetch("https://g4jy.github.io/kwd-homework/config.js")).text();
+      const cfg=await CFGP;
       /* T140h: 새 서버(Supabase hw)를 먼저, 없을 때만 옛 Apps Script 주소. 서버가 4만 자 덩어리를 합쳐 words 하나로 준다 */
       const api=(cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/hw)'/)||cfg.match(/APPS_SCRIPT_URL:\s*'(https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec)'/)||[])[1];
-      if(api){const r=await fetch(api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.words",m})});
+      if(api){const r=await SRVP(api);
         const j=await r.json();const W=j&&j.ok&&j.data&&Array.isArray(j.data.words)?j.data.words:[];
         /* T150e: 과제 Words 탭 '알아요' 반영. 서버가 data.hw_known=[[ko,1|2]] 를 주면(1=알아요 1회, 2=2회 이상·타자 정답) 진도 복원 뒤에 올리기만 한다. 필드가 없으면 아무 일도 안 한다 */
         window.HWAPI={api,m};window.HWK=j&&j.ok&&j.data&&Array.isArray(j.data.hw_known)?j.data.hw_known:[];
@@ -1495,7 +1508,7 @@ const BOOT=(async()=>{
           let kidx=null;   // 중앙 DB 단어 색인(분할판만): ko -> "세트id|노트id"
           if(C)kidx=await PRE.ko;
           let disx={};   // T140e: ②에도 구분 꼬리표(d/_dis.json)
-          if(C){const dk=await PRE.dk;if(Array.isArray(dk))dk.forEach(k=>DBK.add(k));disx=(await PRE.dis)||{}}
+          if(C){const dk=await PRE.dk;if(Array.isArray(dk))dk.forEach(k=>DBK.add(k))}   // T150i: _dis 는 첫 화면에 필요 없어 카드를 채울 때(full) 기다린다
           let seq=0;
           /* 수업 단어 3단 매칭(T112): ① 앱 카드가 있으면 그 카드(뜻·예문 6개·설명·이렇게도 써요) ② 중앙 DB에만 있으면 DB 행으로 카드 ③ DB에도 없으면 수업 예문·선생님 설명으로 최소 카드 */
           const sidOf=ko=>{const e=kidx&&kidx[ko];return e?e.split("|")[0]:null},nidOf=ko=>{const e=kidx&&kidx[ko];return e?e.split("|")[1]:null};
@@ -1513,7 +1526,7 @@ const BOOT=(async()=>{
             if(!ko.startsWith("-"))await loadDb([ko]);
             const db=ko.startsWith("-")?null:(DBI[ko]||null);
             const n={id:id,kind:"word",ko:ko,en:(w.en||"").trim()||(db?db[0]:""),pos:w.pos||(db?db[1]:""),explain:w.teacher_note||"",phrases:[],dict_examples:[],examples:ex?[ex]:[]};
-            if(db&&disx[ko])n.dis=disx[ko];
+            if(PRE&&C)disx=(await PRE.dis)||disx;if(db&&disx[ko])n.dis=disx[ko];
             if(db&&db[2])n.examples.push({ko:db[2],en:db[3]||"",cloze:db[2].includes(stem)?stem:"",src:"중앙 단어 DB"});
             BLANK.forEach(k=>n[k]="");return n};
           window.FILLER={sidOf,nidOf,full};
@@ -1537,7 +1550,7 @@ const BOOT=(async()=>{
           const dts=Object.keys(byDate).sort().reverse();
           /* T140h: 단어마다 세트 파일을 차례로 받던 것(971줄이면 약 15초)을, 필요한 세트 파일만 모아 8개씩 한꺼번에 받는다 */
           /* T140i: 가장 최근 EAGER개 날짜 묶음만 카드를 다 채우고, 나머지는 단어·뜻만 있는 임시 카드로 먼저 그린 뒤 첫 화면 뒤에 채운다(bgFill) */
-          const EAGER=1;
+          const EAGER=0;   // T150i: 첫 화면 전에는 카드를 채우지 않는다(옛 1: 최근 날짜 묶음 전부 먼저). 최근 날짜부터 bgFill 이 채움
           if(kidx&&C){const need=new Set();dts.slice(0,EAGER).forEach(dt=>byDate[dt].forEach(w=>{const e=kidx[w.ko];if(e){const [sid,nid]=e.split("|");if(!NOTES[nid])need.add(sid)}}));
             const q=[...need],run=async()=>{while(q.length){const sid=q.shift();try{(await (await fetch(C.base+sid+".json?v="+C.ver)).json()).forEach(n=>{NOTES[n.id]=n})}catch(e2){}}};
             await Promise.all([loadDb(dts.slice(0,EAGER).flatMap(dt=>byDate[dt].map(w=>w.ko)).filter(k=>!kidx[k])),...Array.from({length:8},run)])}
@@ -1574,7 +1587,7 @@ const BOOT=(async()=>{
       setInterval(save,1500);addEventListener("pagehide",save);document.addEventListener("visibilitychange",save);
     }catch(e){}
   }
-})().then(()=>{render();BGP=bgFill()},()=>{dispatchEvent(new Event("error"))});
+})().then(()=>{render();BGP=bgFill();loadExp()},()=>{dispatchEvent(new Event("error"))});
 </script>
 <script>
 /* ===== v2 MOTION glue (T062). Adds/removes animation classes only. App logic (act, data-a handlers, session flow) is not changed:
