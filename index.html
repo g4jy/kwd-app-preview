@@ -625,7 +625,7 @@ const patTag=n=>n.pos==="문형"?`<p class="center xs muted" style="margin:-6px 
 const disTag=n=>n.dis&&n.dis.h?`<p class="center xs muted dis-tag" style="margin:-6px 0 0">${esc(n.dis.h)}</p>`:"";
 function disCard(n){const d=n.dis;if(!d)return"";const p=d.p,x=d.x||[];
   return`<div class="card s dis-card"><b>${t(2,"비슷한 말과 뭐가 달라요?","How is it different?")}</b>${d.g.map((k,i)=>`<span class="xs muted"><b>${esc(k)}</b>${d.gh&&d.gh[i]?` — ${esc(d.gh[i])}`:""}</span>`).join("")}${p?`<div class="ex">${esc(p.s)}<div>${esc(p.o)}</div><div class="s muted">${esc(p.n)}</div></div>`:""}${x.map(o=>`<span class="xs muted">${t(2,"다른 뜻","Other meaning")}: ${esc(o.en)}${o.ko?` · ${esc(o.ko)}`:""}</span>`).join("")}</div>`}
-const yoSnd=n=>`<button class="icon sm" data-a="sound" data-y="${esc((DATA.yoSound||{})[(n.yo||"").trim()]||"")}" aria-label="${t(2,"해요형 듣기","Hear the 해요 form")}" style="width:28px;height:28px;font-size:14px;margin-left:6px;vertical-align:middle">🔈</button>`;
+const yoSnd=n=>`<button class="icon sm" data-a="sound" data-y="${esc((DATA.yoSound||{})[(n.yo||"").trim()]||"")}" aria-label="${t(2,"해요형 듣기","Hear the 해요 form")}" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-height:0;padding:0;font-size:16px;margin:0 0 0 6px;vertical-align:middle">🔈</button>`;
 const wordHead=n=>`<div class="word">${esc(n.ko)}</div>${n.yo&&n.yo!==n.ko?`<p class="center muted" style="margin:-8px 0 0">${esc(n.yo)}${yoSnd(n)}</p>`:""}${pronLine(n)}<div class="mean">${esc(n.en)}</div>${patTag(n)}${disTag(n)}${sound(n)}`;
 const hasExplain=n=>!!(n.explain||n.video_url||(n.phrases||[]).length);
 
