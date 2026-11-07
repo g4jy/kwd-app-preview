@@ -94,6 +94,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .res.ok::before,.res.bad::before,.res.warn::before{display:inline-grid;place-items:center;width:28px;height:28px;margin-right:8px;border-radius:50%;color:#fff;font-size:17px;vertical-align:middle}
 .res.ok::before{content:"✓"/"";background:var(--ok)} .res.bad::before{content:"✕"/"";background:var(--bad)} .res.warn::before{content:"△"/"";background:var(--warn)}
 .res.ok,.res.bad,.res.warn{border:1px solid currentColor}
+.phone[data-phase=meet]{background:var(--box)}
+.tag.meet{border-color:var(--accent);color:var(--accent);font-weight:600;padding:3px 12px}
+.tag.chk{font-weight:600}
 .tag{display:inline-block;font-size:var(--fs-xs);border:1px solid var(--line);border-radius:999px;padding:1px 10px;color:var(--muted)}
 /* 회독 (T072): 세트 줄 배지·완료 도장·숫자. 색 + 글자로 구분 */
 .rd{display:inline-block;font-size:var(--fs-xs);font-weight:700;border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:999px;padding:0 10px;white-space:nowrap}
@@ -587,15 +590,16 @@ function dirFor(id){
   if((S.pass[id]||0)<2||!NOTES[id].examples.length)return"rec";
   return shuffle(["rec","prod","cloze"])[0];
 }
-function interleave(reviews,fresh){ // new words spread through the session; each is asked again ~3 cards later
-  const q=reviews.map(id=>card(id,dirFor(id)));
-  fresh.forEach((id,k)=>{const p=Math.min(q.length,1+k*4);q.splice(p,0,card(id,"meet"));q.splice(Math.min(q.length,p+3),0,card(id,"rec"))});
-  return q;
+/* T093: 새 단어 '보여 주기'(meet)를 먼저 전부, 사이 화면(sep) 한 장, 그다음 '확인'(복습+새 단어 rec)을 섞는다. 보여 주기에는 점수·SRS 없음 */
+function interleave(reviews,fresh){
+  const chk=reviews.map(id=>card(id,dirFor(id)));
+  if(!fresh.length)return chk;
+  return[...fresh.map(id=>card(id,"meet")),{id:fresh[0],dir:"sep",key:"sep"},...shuffle([...chk,...fresh.map(id=>card(id,"rec"))])];
 }
 function startSession(kind,opts={}){
   let cards=[];
   if(kind==="today"){const p=plan();cards=interleave(shuffle(p.due),p.fresh)}
-  if(kind==="note")cards=[card(opts.id,S.stage[opts.id]?dirFor(opts.id):"meet")].concat(S.stage[opts.id]?[]:[card(opts.id,"rec")]);
+  if(kind==="note")cards=S.stage[opts.id]?[card(opts.id,dirFor(opts.id))]:[card(opts.id,"meet"),{id:opts.id,dir:"sep",key:"sep"},card(opts.id,"rec")];
   if(kind==="list"||kind==="random")cards=shuffle(opts.ids).map(id=>card(id,dirFor(id)));
   if(kind==="set"){const s=anySet(opts.set);
     cards=interleave(shuffle(s.word_ids.filter(id=>S.stage[id]>0&&!S.paused[id]).slice(0,6)),s.word_ids.filter(id=>!S.stage[id]).slice(0,S.settings.newPerDay))}
@@ -636,7 +640,7 @@ function render(){
   $("#foot").innerHTML=r.foot?`<div class="foot">${r.foot}</div>`:"";
   if(!S.sheet&&S.screen==="home"&&helloDue())S.sheet="hello";
   $("#sheet").innerHTML=S.sheet?SHEETS[S.sheet]():"";
-  $("#phone").dataset.screen=S.screen;
+  $("#phone").dataset.screen=S.screen;{const c=S.screen==="q"&&S.session?cur():null;$("#phone").dataset.phase=c?(c.dir==="meet"?"meet":c.dir==="sep"?"sep":"check"):""}
   $("#simPlan").textContent=isPlus()?`플러스(${PLAN_NAME[S.plan][0]})로 보기 중`:"무료로 보기 중";
   (r.after||(()=>{}))();
   if(S.sheet==="memo"){const m=$("#memo"),b=$("[data-a=memoSave]"),orig=S.memo[S.params.id]||"";const upd=()=>b.disabled=m.value===orig;m.addEventListener("input",upd);upd()}
@@ -763,16 +767,26 @@ V.home=()=>{const p=plan(),d=p.due.length,n=p.fresh.length,s=curSet();const fres
 const starBtn=id=>`<button class="icon star" data-a="star" data-id="${id}" aria-pressed="${!!S.starred[id]}" aria-label="${S.starred[id]?"별표 빼기":"별표하기 (나중에 모아서 복습)"}">${S.starred[id]?"★":"☆"}</button>`;
 function sessionTop(){const s=S.session;const pct=Math.round(100*s.i/s.queue.length);
   return`<button class="icon" data-a="stop" aria-label="그만하기">✕</button><div class="prog" aria-label="진행 ${pct}%"><i style="width:${pct}%"></i></div>${langQuick()}${s.undo?`<button class="icon" data-a="undo" aria-label="직전 카드 되돌리기">↶</button>`:`<span style="width:48px"></span>`}`}
+/* T093 확인 카드 단서: 할 일 한 줄은 카드 위 라벨, 답 형식+예 1개(정답과 겹치지 않는 다른 낱말, 정답 힌트 없음) */
+const EGW=[["책","book"],["물","water"],["집","house"]],EGC=[["저는 ___ 읽어요","책을"],["저는 ___ 마셔요","물을"]];
+const egWord=n=>{const x=EGW.find(([k,e])=>!n.ko.includes(k)&&!n.en.toLowerCase().includes(e));return x?`${x[1]} → ${x[0]}`:""};
+const egCloze=(e)=>{const x=EGC.find(([f,a])=>!e.ko.includes(a)&&!e.ko.includes(f.split(" ")[2])&&!(e.cloze||"").includes(a[0]));return x?`${x[0]} → ${x[1]}`:""};
+const chkTag=()=>`<p class="center xs muted" style="margin:8px 0 0"><span class="tag chk">${t(1,"확인","Check")}</span></p>`;
+const fmtLine=(f,eg)=>`<p class="center xs muted" style="margin:0">${f}${eg?` · ${t(1,"예","e.g.")} ${esc(eg)}`:""}</p>`;
+V.sep=()=>({top:sessionTop(),
+  html:`<div class="fill"></div><div class="hero center" style="font-size:var(--fs-xl)">${t(2,"이제 확인해 볼게요","Now let's check")}</div><p class="center muted" style="margin:0">${t(3,"방금 본 단어와 전에 배운 단어를 기억하는지 봐요","Do you remember these words?")}</p><div class="fill"></div>`,
+  foot:`<button class="btn pri" data-a="sepNext">${t(1,"확인 시작","Start check")}</button>`});
 V.q=()=>{const s=S.session,c=cur(),n=NOTES[c.id];
+  if(c.dir==="sep")return V.sep();
   if(c.dir==="meet")return{top:sessionTop(),
-    html:`<p class="center xs muted" style="margin:8px 0 0">${t(1,"새 단어","New word")}</p><div class="fill"></div>${wordHead(n)}${exBox(ex(n))}<p class="center xs muted" style="margin:0">${t(3,"소리 내어 한 번 따라 해 보세요","Say it out loud once")}</p><div class="fill"></div>`,
-    foot:`<button class="btn pri" data-a="meetNext">${t(1,"다음","Next")}</button><button class="link" data-a="meetKnown">${t(2,"이미 아는 단어예요","I already know this")}</button>`};
-  if(c.dir==="rec")return{top:sessionTop(),html:`<p class="center xs muted" style="margin:8px 0 0">${t(2,"뜻이 뭐예요?","What does it mean?")}</p><div class="fill"></div><div class="word">${esc(n.ko)}</div>${sound(n)}<div class="fill"></div>`,
+    html:`<p class="center xs muted" style="margin:8px 0 0"><span class="tag meet">${t(2,"새 단어 — 읽고 들어 보세요","New word — just read and listen")}</span></p><div class="fill"></div>${wordHead(n)}${exBox(ex(n))}<p class="center xs muted" style="margin:0">${t(3,"소리 내어 한 번 따라 해 보세요","Say it out loud once")}</p><div class="fill"></div>`,
+    foot:`<button class="btn pri" data-a="meetNext">${t(1,"다음","Next")}</button>`};
+  if(c.dir==="rec")return{top:sessionTop(),html:`${chkTag()}<p class="center muted" style="margin:0;font-weight:700">${t(2,"뜻이 뭐예요?","What does it mean?")}</p>${fmtLine(t(2,"속으로 뜻을 떠올린 뒤 눌러요","Think of the meaning, then tap"),egWord(n))}<div class="fill"></div><div class="word">${esc(n.ko)}</div>${sound(n)}<div class="fill"></div>`,
     foot:`<button class="btn pri" data-a="reveal">${t(1,"뜻 보기","Show meaning")}</button>`};
   const isCloze=c.dir==="cloze",e=ex(n,1);
   const lv=isCloze?e.speech_level:(["동사","형용사"].includes(n.pos)?"해요":"");
-  const q=isCloze?(()=>{const p=e.ko.split(e.cloze);return`<p class="center xs muted" style="margin:0">${t(2,"빈칸에 들어갈 말은?","Fill in the blank")}</p><div style="font-size:var(--fs-l);text-align:center">${esc(p[0])}<span class="blank"></span>${esc(p[1]||"")}</div><p class="center s muted" style="margin:0">${esc(n.en)}</p>`})()
-    :`<p class="center xs muted" style="margin:0">${t(2,"한국어로 뭐예요?","Say it in Korean")}</p><div class="mean" style="font-size:var(--fs-xl);font-weight:700">${esc(n.en)}</div>${peLine(n,1)}${disTag(n)}`;
+  const q=isCloze?(()=>{const p=e.ko.split(e.cloze);return`${chkTag()}<p class="center" style="margin:0;font-weight:700">${t(2,"빈칸에 들어갈 말은?","Fill in the blank")}</p>${fmtLine(t(2,"빈칸에 들어갈 말만 한국어로","Korean, only the missing part"),egCloze(e))}<div style="font-size:var(--fs-l);text-align:center">${esc(p[0])}<span class="blank"></span>${esc(p[1]||"")}</div><p class="center s muted" style="margin:0">${esc(n.en)}</p>`})()
+    :`${chkTag()}<p class="center" style="margin:0;font-weight:700">${t(2,"한국어로 뭐예요?","Say it in Korean")}</p>${fmtLine(t(2,"한국어로 한 낱말/표현","Korean, one word or phrase"),egWord(n))}<div class="mean" style="font-size:var(--fs-xl);font-weight:700">${esc(n.en)}</div>${peLine(n,1)}${disTag(n)}`;
   return{top:sessionTop(),
    html:`<div class="fill"></div>${q}${lv&&lv!=="중립"?`<div class="center"><span class="tag">${t(1,"말투","Style")}: ${esc(lv)}</span></div>`:""}
     <input type="text" id="inp" autocomplete="off" lang="ko" aria-label="한국어로 쓰기" placeholder="${t(2,"한국어로 쓰기","Type in Korean")}" value="${esc(s.input)}">
@@ -1440,6 +1454,7 @@ function act(a,el){const d=el?el.dataset:{};const s=S.session;log("tap:"+a);if(a
   case"hint":s.hint=true;render();break;
   case"self":submit(d.v);nextCard();break;
   case"next":nextCard();break;
+  case"sepNext":nextCard();break;
   case"meetNext":submit("seen");nextCard();break;
   case"meetKnown":submit("known");toast(t(3,"알겠어요. 몇 주 뒤에 한 번만 확인할게요","Got it. We'll check it once in a few weeks"),2200);nextCard();break;
   case"undo":{const u=s.undo;s.i=u.i;s.queue=u.queue.slice(0,u.len);s.results.length=u.res;const id=cur().id;S.stage[id]=u.stage;S.pass[id]=u.pass;S.assumed[id]=u.assumed;S.weekWords.length=u.ww;s.undo=null;s.input="";s.hint=false;s.graded=null;go("q",{},false);break}
