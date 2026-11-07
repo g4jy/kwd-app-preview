@@ -1820,6 +1820,8 @@ const BOOT=(async()=>{
         if(Array.isArray(o.pend))S.pend=o.pend;
         if(o.exam)exLoad(o.exam,fromK);
 }
+      /* T104 체험 링크: 주소 npd(하루 새 단어)·pcn(하루 새 표현)을 처음 한 번만 기본값으로 */
+      {const q=new URLSearchParams(location.search),n=+q.get("npd"),p=+q.get("pcn");if((n||p)&&!S.settings.xpInit){if(n)S.settings.newPerDay=Math.min(30,n);if(p)S.settings.pcNew=Math.min(10,p);S.settings.xpInit=1}}
       /* T150e: 과제에서 알게 된 단어를 올리기만 한다(앱 기록을 낮추지 않음). 1=조금 앎(stage 1, 복습 간격 짧게), 2=앎(stage 2, 아는 단어) */
       try{const byKo={};Object.keys(NOTES).forEach(i=>{const n=NOTES[i];if(n.kind==="word"&&n.ko)(byKo[n.ko.replace(/\s/g,"")]=byKo[n.ko.replace(/\s/g,"")]||[]).push(i)});
         (window.HWK||[]).forEach(p=>{const lv=+p[1];(byKo[String(p[0]||"").replace(/\s/g,"")]||[]).forEach(id=>{if(S.paused[id])return;
