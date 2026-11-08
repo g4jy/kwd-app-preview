@@ -611,7 +611,7 @@ function startSession(kind,opts={}){
 const cur=()=>S.session&&S.session.queue[S.session.i];
 function submit(result){const s=S.session,c=cur();
   s.undo={i:s.i,len:s.queue.length,stage:S.stage[c.id],pass:S.pass[c.id],res:s.results.length,ww:S.weekWords.length,queue:[...s.queue],assumed:S.assumed[c.id]};
-  s.results.push({key:c.key,id:c.id,dir:c.dir,result});S.last[c.id]=result;if(!S.exam.born[c.id])S.exam.born[c.id]=Date.now();if(result!=="bad"&&c.dir!=="meet"&&S.exam.front.length)S.exam.front=S.exam.front.filter(i=>i!==c.id);log(`result:${c.id}:${c.dir}:${result}`);markStudy();
+  s.results.push({key:c.key,id:c.id,dir:c.dir,result});S.last[c.id]=result;evPush(c.id,result,c.dir);if(!S.exam.born[c.id])S.exam.born[c.id]=Date.now();if(result!=="bad"&&c.dir!=="meet"&&S.exam.front.length)S.exam.front=S.exam.front.filter(i=>i!==c.id);log(`result:${c.id}:${c.dir}:${result}`);markStudy();
   if(result==="bad"){s.queue.push({...c,retry:true});S.pass[c.id]=0}
   else if(result==="known"){S.assumed[c.id]=true;S.stage[c.id]=2;S.pass[c.id]=2;s.queue=s.queue.filter((x,i)=>i<=s.i||x.id!==c.id)}
   else if(c.dir==="meet")S.stage[c.id]=Math.max(1,S.stage[c.id]||0);
@@ -843,7 +843,7 @@ function pcStart(){if(!PCX.done)return;const due=pcDueList().slice(0,8),fresh=pc
 const pcCur=()=>S.pcq&&S.pcq.queue[S.pcq.i];
 function pcSubmit(r){const q=S.pcq,c=pcCur(),now=Date.now();let st=S.pcs[c.id];if(!st)st=S.pcs[c.id]={s:1,p:0,d:now+DAY,b:now};
   if(r==="meet"){markStudy();return}
-  q.res.push({id:c.id,r});markStudy();
+  q.res.push({id:c.id,r});evPush("pc:"+c.id,r,"pc");markStudy();
   if(r==="bad"){st.s=1;st.p=0;st.d=now+DAY;q.queue.push({id:c.id,ph:"chk",z:(c.z+1)%2,retry:1})}
   else{st.p=(st.p||0)+1;if(r!=="hard")st.s=Math.min(3,st.s+1);st.d=now+PCI[st.s]*DAY}}
 function pcNext(){const q=S.pcq;q.i++;q.input="";q.hint=false;q.graded=null;q.flip=false;q.peek=false;
@@ -971,7 +971,7 @@ function teacherCard(n){return`<div class="card s"><b>${t(2,"선생님 설명","
 /* phrase = "표현 (meaning) :: 예문 :: 느낌" — example and nuance are optional */
 const phrase=x=>{if(typeof x==="object"){const eq=x.en_equiv&&x.en_equiv!=="—"?x.en_equiv:"";
     return`<div class="ph"><b>${esc(x.ko)}</b>${x.example?`<span class="s">“${esc(x.example)}”</span>`:""}
-      <span class="xs muted">${t(2,"직역","Literally")} ${esc(x.literal||"")}${eq?` · ${t(2,"영어로는","In English")} <i>${esc(eq)}</i>`:` · ${esc(x.meaning_en||"")}`}</span>
+      ${(()=>{const lt=(x.literal||"").trim(),tail=eq?`${t(2,"영어로는","In English")} <i>${esc(eq)}</i>`:esc(x.meaning_en||""),parts=[lt?`${t(2,"직역","Literally")} ${esc(lt)}`:"",tail].filter(Boolean);return parts.length?`<span class="xs muted">${parts.join(" · ")}</span>`:""})()}
       ${(()=>{const nu=t(3,x.nuance_ko,x.nuance_en||"");return nu?`<span class="xs muted">→ ${esc(nu)}</span>`:""})()}</div>`}
   const [head,exs,nu]=x.split(" :: ");const m=head.match(/^(.*?) \((.*)\)$/);
   return`<div class="ph"><b>${esc(m?m[1]:head)}</b>${m?`<span class="xs muted">${esc(m[2])}</span>`:""}${exs?`<span class="s">“${esc(exs)}”</span>`:""}${nu?`<span class="xs muted">→ ${esc(nu)}</span>`:""}</div>`};
@@ -1398,7 +1398,34 @@ function suggestWord(ko,en,exko){S.pend.push({ko,en:en||"",ex:exko||"",at:Date.n
 async function flushPend(){const H=window.HWAPI;if(!H||!H.api||!H.m)return;
   for(const p of S.pend){if(p.st!=="queued")continue;
     try{const j=await (await fetch(H.api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.word_suggest",m:H.m,ko:p.ko,en:p.en,ex:p.ex,at:p.at})})).json();if(j&&j.ok)p.st="sent"}catch(e){}}}
-const pendList=()=>S.pend.length?`<div class="glist" data-pend>${S.pend.map(p=>`<div class="grow-row"><span class="fill">${esc(p.ko)}${p.en?` <span class="muted">· ${esc(p.en)}</span>`:""}</span><span class="xs muted">${t(2,"선생님 확인 중","Teacher is checking")}</span></div>`).join("")}</div>`:"";
+/* T113 진도 중앙 저장: 카드 결과를 기기 큐(localStorage kwd.evq.v1:<m>)에 쌓고 과제 서버 student.card_log 로 묶어 보낸다.
+   이벤트 e = 기기번호+순번(서버가 중복 버림). 오프라인이면 큐에 남아 다음 연결 때 전송. 첫 연결 때 기기 진도 snap(카드별 단계·횟수·마지막 결과)을 한 번 올림. 화면 변화 없음 */
+const EV={q:null,sent:false,busy:false,dev:null,seq:0,snapDone:false};
+function evKey(){const H=window.HWAPI;return H&&H.m?"kwd.evq.v1:"+H.m:null}
+function evLoad(){if(EV.q)return true;const k=evKey();if(!k)return false;
+  try{const o=JSON.parse(localStorage.getItem(k)||"{}");EV.q=Array.isArray(o.q)?o.q:[];EV.dev=o.dev||("d"+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36));EV.seq=o.seq||0;EV.snapDone=!!o.snap}catch(e){EV.q=[];EV.dev="d"+Date.now().toString(36);EV.seq=0}
+  return true}
+function evSave(){const k=evKey();if(!k||!EV.q)return;try{localStorage.setItem(k,JSON.stringify({q:EV.q.slice(-2000),dev:EV.dev,seq:EV.seq,snap:EV.snapDone}))}catch(e){}}
+const evCard=id=>{id=String(id);return/^m\d+$/.test(id)&&NOTES[id]?"m:"+NOTES[id].ko:id};
+function evPush(id,r,dir){try{if(!evLoad())return;EV.seq++;EV.q.push({e:EV.dev+":"+EV.seq,c:evCard(id),r:r,d:dir||"",t:Date.now()});evSave();evFlush()}catch(e){}}
+async function evFlush(){if(EV.busy||EV.off||!window.EVREADY)return;const H=window.HWAPI;if(!H||!H.api||!H.m||!evLoad())return;EV.busy=true;
+  try{
+    if(!EV.snapDone){const snap=[];Object.keys(S.stage).forEach(id=>{const st=S.stage[id]||0,p=S.pass[id]||0,l=S.last[id]||"";if(st||p||l)snap.push({c:evCard(id),s:st,p:p,l:l})});
+      Object.keys(S.pcs||{}).forEach(id=>{const x=S.pcs[id];if(x)snap.push({c:"pc:"+id,s:x.s||0,p:x.p||0,l:""})});
+      let ok=true;for(let i=0;i<snap.length||i===0;i+=400){const j=await (await fetch(H.api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.card_log",m:H.m,dev:EV.dev,snap:snap.slice(i,i+400),snap_part:i/400,snap_last:i+400>=snap.length})})).json();if(!(j&&j.ok)){ok=false;EV.off=1;break}}
+      if(ok){EV.snapDone=true;evSave()}else return}
+    while(EV.q.length){const b=EV.q.slice(0,200);
+      const j=await (await fetch(H.api,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.card_log",m:H.m,dev:EV.dev,ev:b})})).json();
+      if(!(j&&j.ok)){EV.off=1;break}EV.q=EV.q.slice(b.length);EV.sent=true;evSave()}
+  }catch(e){}finally{EV.busy=false}}
+addEventListener("online",()=>{EV.off=0;evFlush()});setInterval(()=>{if(EV.q&&EV.q.length||EV.q===null)evFlush()},30000);
+/* T112: 서버 student.words 의 suggest[](status·label_en/ko·card_ko/en·note)를 읽어 검토 결과를 보인다. 서버에 없는 기기 대기분은 '선생님 확인 중' */
+const sugRows=()=>{const sv=(window.HWSUG||[]).map(x=>{const st=x.status||"pending",card=TIER[S.settings.lang]>=2?(x.card_ko||x.card_en):(x.card_en||x.card_ko);
+    const lab=st==="rejected"?(x.note||(t(2,"넣지 않았어요","Not added"))):(st==="added"||st==="linked")?`${t(2,"카드가 됐어요","Added")}${card?` · ${card}`:""}`:(TIER[S.settings.lang]>=2?(x.label_ko||x.label_en):(x.label_en||x.label_ko))||t(2,"선생님 확인 중","Teacher is checking");
+    return{ko:x.ko,en:x.en||"",lab}});
+  const have=new Set(sv.map(r=>r.ko));
+  return sv.concat(S.pend.filter(p=>!have.has(p.ko)).map(p=>({ko:p.ko,en:p.en,lab:t(2,"선생님 확인 중","Teacher is checking")})))};
+const pendList=()=>{const R=sugRows();return R.length?`<div class="glist" data-pend>${R.map(p=>`<div class="grow-row"><span class="fill">${esc(p.ko)}${p.en?` <span class="muted">· ${esc(p.en)}</span>`:""}</span><span class="xs muted">${esc(p.lab)}</span></div>`).join("")}</div>`:""};
 const simBlock=p=>p.sim?`<p class="s" style="margin:0"><b>${p.sim.length?t(2,"비슷한 단어가 이미 있어요. 이 카드를 넣을까요?","Similar words already exist. Add this card?"):""}</b></p>
   ${p.sim.length?`<div class="glist">${p.sim.map((m,i)=>`<button class="grow-row" data-a="addSim" data-i="${i}"><span class="fill"><b>${esc(m.ko)}</b> <span class="muted">${esc(m.en)}</span></span><span class="xs">${t(2,"넣기","Add")}</span></button>`).join("")}</div>`:""}
   <button class="btn" data-a="addSuggest">${t(2,"맞는 게 없어요 · 선생님께 보내기","None fits · send to teacher")}</button>`:"";
@@ -1743,7 +1770,7 @@ const BOOT=(async()=>{
       if(api){const pe=PF0?await PF0.srv:null;const r=pe&&pe.api===api?pe.r:await SRVP(api);
         const j=await r.json();const W=j&&j.ok&&j.data&&Array.isArray(j.data.words)?j.data.words:[];
         /* T150e: 과제 Words 탭 '알아요' 반영. 서버가 data.hw_known=[[ko,1|2]] 를 주면(1=알아요 1회, 2=2회 이상·타자 정답) 진도 복원 뒤에 올리기만 한다. 필드가 없으면 아무 일도 안 한다 */
-        window.HWAPI={api,m};window.HWK=j&&j.ok&&j.data&&Array.isArray(j.data.hw_known)?j.data.hw_known:[];
+        window.HWAPI={api,m};window.HWSUG=j&&j.ok&&j.data&&Array.isArray(j.data.suggest)?j.data.suggest:[];window.HWK=j&&j.ok&&j.data&&Array.isArray(j.data.hw_known)?j.data.hw_known:[];
         if(W.length){
           const ids=[],seen=new Set();
           const todayKo=new Date().toISOString().slice(0,10);
@@ -1827,7 +1854,7 @@ const BOOT=(async()=>{
         (window.HWK||[]).forEach(p=>{const lv=+p[1];(byKo[String(p[0]||"").replace(/\s/g,"")]||[]).forEach(id=>{if(S.paused[id])return;
           if(lv>=2&&(S.stage[id]||0)<2){S.stage[id]=2;S.pass[id]=Math.max(2,S.pass[id]||0);S.assumed[id]=true;delete S.hwSome[id]}
           else if(lv===1&&!S.stage[id]){S.stage[id]=1;S.pass[id]=1;S.hwSome[id]=true}})})}catch(e){}
-      flushPend();
+      flushPend();window.EVREADY=1;evFlush();
       const save=()=>{try{const o={settings:S.settings,pend:S.pend,mineDb:S.mineDb,exam:exSer(toK)};PF.forEach(f=>{o[f]={};Object.keys(S[f]).forEach(id=>{o[f][toK(id)]=S[f][id]})});localStorage.setItem(PK,JSON.stringify(o))}catch(e){}};
       setInterval(save,1500);addEventListener("pagehide",save);document.addEventListener("visibilitychange",save);
     }catch(e){}
