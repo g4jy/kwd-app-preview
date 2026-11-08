@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete your KWD Korean account</title>
+<style>
+:root{--bg:#fbfaf7;--ink:#1d1d1b;--mute:#6b6a66;--line:#e4e1da;--acc:#b3262e}
+*{box-sizing:border-box}
+body{font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:24px 16px}
+main{max-width:480px;margin:0 auto}
+h1{font-size:20px;margin:0 0 8px}p,li{color:var(--mute);font-size:14px}
+label{display:block;margin-top:16px;font-size:14px;color:var(--mute)}
+input,button{font:inherit;width:100%;min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+button{margin-top:16px;background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.6}
+#msg{min-height:20px;font-size:14px}.err{color:var(--acc)}
+</style></head><body><main>
+<h1>Delete your KWD Korean account</h1>
+<p>Fill in the link (or the code after <code>k=</code>) your teacher sent you and the email you signed in with. We send a deletion request to your teacher, unlink the app from your account, and your teacher removes your learning data after checking with you.</p>
+<label for="k">Your link or code</label>
+<input id="k" type="text" autocapitalize="off" autocomplete="off" spellcheck="false">
+<label for="e">Your email</label>
+<input id="e" type="text" inputmode="email" autocapitalize="off" autocomplete="email" spellcheck="false">
+<p id="msg" role="alert"></p>
+<button id="go">Send deletion request</button>
+<script>
+const $=id=>document.getElementById(id);
+const say=(t,bad)=>{$("msg").textContent=t;$("msg").className=bad?"err":""};
+const CFG="https://g4jy.github.io/kwd-homework/config.js";
+async function api(){const c=await (await fetch(CFG)).text();
+  return (c.match(/APPS_SCRIPT_URL:\s*'(https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/hw)'/)||c.match(/APPS_SCRIPT_URL:\s*'(https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec)'/)||[])[1];}
+function key(s){s=(s||"").trim();const m=s.match(/[?&]k=([A-Za-z0-9_-]{6,80})/);if(m)return m[1];return /^[A-Za-z0-9_-]{6,80}$/.test(s)?s:"";}
+function mail(s){s=(s||"").trim().toLowerCase();return s.length<=120&&/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s)?s:"";}
+$("go").onclick=async()=>{const k=key($("k").value),e=mail($("e").value);
+  if(!k){say("That doesn't look like your link or code. Copy it again from your teacher's message.",1);return;}
+  if(!e){say("Check your email address. It should look like name@example.com.",1);return;}
+  $("go").disabled=true;say("");
+  try{const u=await api();if(!u)throw 0;
+    const r=await fetch(u,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"student.delete_request",key:k,email:e})});
+    const j=await r.json();
+    if(j&&j.ok){say("Request sent. Your teacher will contact you before removing your data.");}
+    else if(j&&j.error==="rate_limited"){say("Too many tries. Try again later.",1);}
+    else say("Check the link and email, then try again.",1);
+  }catch(x){say("No connection. Check your internet and try again.",1);}
+  $("go").disabled=false;};
+</script></main></body></html>
