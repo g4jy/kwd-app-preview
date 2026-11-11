@@ -1774,7 +1774,7 @@ $("#simPublic").onclick=()=>{reset();S.code="google:demo";S.me={country:"",job:"
     if(st==="demo"){S.stage={...DEMO.stage};S.pass={...DEMO.pass};S.assumed={};S.weekWords=[...DEMO.ww]}
     else{S.stage={};S.pass={};S.assumed={};S.weekWords=[];
       const k=+st;
-      SETS.forEach((s,i)=>s.word_ids.forEach((id,j)=>{S.stage[id]=i<k?pat[(i+j)%pat.length]:i===k?(j<Math.ceil(s.word_ids.length/2)?(j%2?1:2):0):0}));
+      SETS.forEach((s,i)=>s.word_ids.forEach((id,j)=>{if(S.stage[id]===undefined)S.stage[id]=i<k?pat[(i+j)%pat.length]:i===k?(j<Math.ceil(s.word_ids.length/2)?(j%2?1:2):0):0}));   /* T167z: 두 세트에 같이 든 낱말은 앞 세트 값(뒤 세트가 0으로 덮어 '앞 단계 다 외움'이 깨졌음) */
       [...LESSONS,...EXPANSIONS].forEach(l=>l.word_ids.forEach(id=>{if(S.stage[id]===undefined)S.stage[id]=0}));
       Object.keys(S.stage).forEach(id=>S.pass[id]=S.stage[id]>=2?2:S.stage[id]===1?1:0);
       if(k>0)S.weekWords=SETS[k-1].word_ids.filter(id=>S.stage[id]===2).slice(0,5);}
