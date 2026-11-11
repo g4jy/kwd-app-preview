@@ -4,6 +4,7 @@
   "store_android": "",
   "store_ios": "",
   "data_remote": true,
-  "err_post": false,
-  "_help": "T167b 앱 스위치. min_build보다 낮은 판의 앱은 '업데이트 필요' 화면만 보인다(0 = 아무도 안 막음). data_remote=false면 앱이 공개 사이트 자료를 받지 않고 앱에 든 사본만 쓴다. err_post=true면 앱 오류 기록을 과제 서버 app.error_log로 보낸다(과제 서버에 그 action이 생긴 뒤 켤 것). 바꾼 뒤 publish_proto_preview.py로 배포."
+  "err_post": true,
+  "prog_pull": true,
+  "_help": "T167b 앱 스위치. min_build보다 낮은 판의 앱은 '업데이트 필요' 화면만 보인다(0 = 아무도 안 막음). data_remote=false면 앱이 공개 사이트 자료를 받지 않고 앱에 든 사본만 쓴다. err_post=true면 앱 오류 기록을 과제 서버 app.error_log로 보낸다. prog_pull=true면 이 기기에 진도가 없을 때 과제 서버 student.card_get으로 진도를 받아 넣는다(T167u 시험 학생 실서버 확인 뒤 켬). 끄려면 둘 다 false로 바꾸고 publish_proto_preview.py로 배포(앱은 다음 실행·앞으로 올 때 읽음)."
 }
