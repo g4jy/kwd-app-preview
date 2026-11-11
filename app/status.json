@@ -1,0 +1,9 @@
+{
+  "min_build": 0,
+  "message_en": "A new version of KWD Korean is ready. Please update the app to keep studying.",
+  "store_android": "",
+  "store_ios": "",
+  "data_remote": true,
+  "err_post": false,
+  "_help": "T167b 앱 스위치. min_build보다 낮은 판의 앱은 '업데이트 필요' 화면만 보인다(0 = 아무도 안 막음). data_remote=false면 앱이 공개 사이트 자료를 받지 않고 앱에 든 사본만 쓴다. err_post=true면 앱 오류 기록을 과제 서버 app.error_log로 보낸다(과제 서버에 그 action이 생긴 뒤 켤 것). 바꾼 뒤 publish_proto_preview.py로 배포."
+}
